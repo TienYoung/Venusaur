@@ -1,170 +1,75 @@
-#include "Renderer.h"
+#include <nvjpeg.h>
+#include <vector>
+#include <fstream>
 
-#include <GL/gl3w.h>
-#include <GLFW/glfw3.h>
-#include <cassert>
+#include "RayTracer.h"
 
-static void ErrorCallback(int error, const char* description)
-{
-	std::cerr << "GLFW Error " << error << ": " << description << std::endl;
-}
-
-static void KeyCallback(GLFWwindow* window, int32_t key, int32_t /*scancode*/, int32_t action, int32_t /*mods*/)
-{
-	if (action == GLFW_PRESS)
-	{
-		if (key == GLFW_KEY_Q || key == GLFW_KEY_ESCAPE)
-		{
-			glfwSetWindowShouldClose(window, true);
-		}
-	}
-}
+#include "Exception.h"
 
 
-const std::string s_vert_source = R"(
-#version 330 core
+int         width = 256;
+int         height = 256;
 
-layout(location = 0) in vec3 vertexPosition_modelspace;
-out vec2 UV;
-
-void main()
-{
-	gl_Position =  vec4(vertexPosition_modelspace,1);
-	UV = (vec2( vertexPosition_modelspace.x, vertexPosition_modelspace.y )+vec2(1,1))/2.0;
-}
-)";
-
-const std::string s_frag_source = R"(
-#version 330 core
-
-in vec2 UV;
-out vec3 color;
-
-uniform sampler2D render_tex;
-uniform bool correct_gamma;
-
-void main()
-{
-    color = texture( render_tex, UV ).xyz;
-}
-)";
-
-
-int         width = 1920;
-int         height = 1200;
 
 int main(int argc, char* argv[])
 {
-	// Init Optix.
-	Init();
+
+	std::vector<unsigned char> red;
+	std::vector<unsigned char> green;
+	std::vector<unsigned char> blue;
+
+	Trace(width, height, red, green, blue);
 
 
-	// Init GLFW.
-	GLFWwindow* window = nullptr;
-	glfwSetErrorCallback(ErrorCallback);
-	if (!glfwInit())
-		return -1;
+	nvjpegHandle_t nv_handle;
+	nvjpegEncoderState_t nv_enc_state;
+	nvjpegEncoderParams_t nv_enc_params;
+	cudaStream_t stream = nullptr;
 
-	window = glfwCreateWindow(width, height, "Hello Optix", nullptr, nullptr);
-	if (!window)
-	{
-		glfwTerminate();
-		return -1;
-	}
+	//CUDA_CHECK(cudaStreamCreateWithFlags(&stream, cudaStreamNonBlocking));
+	CUDA_CHECK(cudaStreamSynchronize(stream));
 
-	glfwMakeContextCurrent(window);
-	glfwSetKeyCallback(window, KeyCallback);
-	
-	// Init gl3w.
-	if (gl3wInit())
-	{
-		glfwDestroyWindow(window);
-		glfwTerminate();
-		return -1;
-	}
+	// initialize nvjpeg structures
+	CHECK_NVJPEG(nvjpegCreateSimple(&nv_handle));
+	CHECK_NVJPEG(nvjpegEncoderStateCreate(nv_handle, &nv_enc_state, stream));
+	CHECK_NVJPEG(nvjpegEncoderParamsCreate(nv_handle, &nv_enc_params, stream));
+	CHECK_NVJPEG(nvjpegEncoderParamsSetEncoding(nv_enc_params, NVJPEG_ENCODING_BASELINE_DCT, stream));
+	CHECK_NVJPEG(nvjpegEncoderParamsSetQuality(nv_enc_params, 70, stream));
+	CHECK_NVJPEG(nvjpegEncoderParamsSetOptimizedHuffman(nv_enc_params, 0, stream));
+	CHECK_NVJPEG(nvjpegEncoderParamsSetSamplingFactors(nv_enc_params, NVJPEG_CSS_444, stream));
 
 
-	// Create resource.
-	GLuint vao;
-	GL_CHECK(glGenVertexArrays(1, &vao));
-	GL_CHECK(glBindVertexArray(vao));
-
-	GLuint program = createGLProgram(s_vert_source, s_frag_source);
-	GLint texLoc = glGetUniformLocation(program, "render_tex");
-	assert(texLoc != -1);
-	GLuint renderTex;
-	GL_CHECK(glGenTextures(1, &renderTex));
-	GL_CHECK(glBindTexture(GL_TEXTURE_2D, renderTex));
-	GL_CHECK(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST));
-	GL_CHECK(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST));
-	GL_CHECK(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE));
-	GL_CHECK(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE));
-	static const GLfloat g_quad_vertex_buffer_data[] = {
-	-1.0f, -1.0f, 0.0f,
-	 1.0f, -1.0f, 0.0f,
-	-1.0f,  1.0f, 0.0f,
-
-	-1.0f,  1.0f, 0.0f,
-	 1.0f, -1.0f, 0.0f,
-	 1.0f,  1.0f, 0.0f,
-	};
-
-	GLuint vbo;
-	glGenBuffers(1, &vbo);
-	glBindBuffer(GL_ARRAY_BUFFER, vbo);
-	glBufferData(GL_ARRAY_BUFFER, sizeof(g_quad_vertex_buffer_data), g_quad_vertex_buffer_data, GL_STATIC_DRAW);
-
-	GL_CHECK_ERRORS();
-
-	auto dataPtr = Launch(width, height);
-	std::vector<uchar4> data(dataPtr, dataPtr + width * height);
-	GLuint pbo = 0u;
-	glGenBuffers(1, &pbo);
-	glBindBuffer(GL_ARRAY_BUFFER, pbo);
-	glBufferData(GL_ARRAY_BUFFER, sizeof(uchar4) * width * height, (void*)data.data(), GL_STREAM_DRAW);
-	glBindBuffer(GL_ARRAY_BUFFER, 0);
+	nvjpegImage_t nv_image;
+	// Fill nv_image with image data, let¡¯s say 640x480 image in RGB format
+	nv_image.channel[0] = red.data();
+	nv_image.channel[1] = green.data();
+	nv_image.channel[2] = blue.data();
+	//nv_image.channel[3] = &data->w;
+	nv_image.pitch[0] = width;
+	nv_image.pitch[1] = width;
+	nv_image.pitch[2] = width;
+	//nv_image.pitch[3] = sizeof(uchar4) * width;
 
 
-	// Rendering.
-	while (!glfwWindowShouldClose(window))
-	{
-		GL_CHECK(glBindFramebuffer(GL_FRAMEBUFFER, 0));
-		glViewport(0, 0, width, height);
-
-		GL_CHECK(glClearColor(0.3f, 0.6f, 0.2f, 1.0f));
-		GL_CHECK(glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT));
-
-		GL_CHECK(glUseProgram(program));
-
-		glActiveTexture(GL_TEXTURE0);
-		glBindTexture(GL_TEXTURE_2D, renderTex);
-		glBindBuffer(GL_PIXEL_UNPACK_BUFFER, pbo);
-
-		glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
-
-		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
-		glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
-		glUniform1i(texLoc, 0);
-
-		glEnableVertexAttribArray(0);
-		glBindBuffer(GL_ARRAY_BUFFER, vbo);
-		glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, (void*)0);
-
-		glDisable(GL_FRAMEBUFFER_SRGB);
-
-		glDrawArrays(GL_TRIANGLES, 0, 6);
-		glDisableVertexAttribArray(0);
-
-		glfwSwapBuffers(window);
-		glfwPollEvents();
-	}
+	// Compress image
+	CHECK_NVJPEG(nvjpegEncodeImage(nv_handle, nv_enc_state, nv_enc_params, &nv_image, NVJPEG_INPUT_RGB, width, height, stream));
 
 
-	// Cleanup.
-	glfwDestroyWindow(window);
-	glfwTerminate();
+	// get compressed stream size
+	size_t length;
+	CHECK_NVJPEG(nvjpegEncodeRetrieveBitstream(nv_handle, nv_enc_state, NULL, &length, stream));
+	// get stream itself
+	CUDA_CHECK(cudaStreamSynchronize(stream));
+	std::vector<char> jpeg(length);
+	CHECK_NVJPEG(nvjpegEncodeRetrieveBitstream(nv_handle, nv_enc_state, (unsigned char*)jpeg.data(), &length, 0));
 
-	Cleanup();
+	// write stream to file
+	CUDA_CHECK(cudaStreamSynchronize(stream));
+	std::ofstream output_file("test.jpg", std::ios::out | std::ios::binary);
+	output_file.write(jpeg.data(), length);
+	output_file.close();
+
+
 
 	return 0;
 }

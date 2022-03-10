@@ -1,4 +1,4 @@
-#pragma once
+#include "RayTracer.h"
 
 #include <optix.h>
 #include <optix_function_table_definition.h>
@@ -14,13 +14,9 @@
 
 #include <direct.h>
 
-#include <GL/gl3w.h>
+#include "inOneWeekend.h"
 
-struct Params
-{
-	uchar4* image;
-	unsigned int image_width;
-};
+
 
 struct RayGenData
 {
@@ -53,6 +49,7 @@ OptixShaderBindingTable sbt = {};
 
 uchar4* device_pixels = nullptr;
 std::vector<uchar4> host_pixels;
+
 void Init()
 {
 	char log[2048]; // For error reporting from OptiX creation functions
@@ -89,7 +86,7 @@ void Init()
 		pipeline_compile_options.pipelineLaunchParamsVariableName = "params";
 
 		std::string currentPath(_getcwd(NULL, 0));
-		std::string filename = currentPath + "/../Binaries/x64/Debug/Hello.ptx";
+		std::string filename = currentPath + "/../Binaries/x64/Debug/inOneWeekend.ptx";
 
 		size_t inputSize = 0;
 		std::fstream file(filename);
@@ -223,13 +220,8 @@ void Init()
 		sbt.missRecordStrideInBytes = sizeof(MissSbtRecord);
 		sbt.missRecordCount = 1;
 	}
-
-
-
-
-
 }
- 
+
 uchar4* Launch(int width, int height)
 {
 	//
@@ -287,82 +279,18 @@ void Cleanup()
 	OPTIX_CHECK(optixDeviceContextDestroy(context));
 }
 
-
-GLuint createGLShader(const std::string& source, GLuint shader_type)
+void Trace(int width, int height, std::vector<unsigned char>& red, std::vector<unsigned char>& green, std::vector<unsigned char>& blue)
 {
-	GLuint shader = glCreateShader(shader_type);
+	Init();
+	uchar4* data = Launch(width, height);
+	Cleanup();
+	for (size_t i = 0; i < height; i++)
 	{
-		const GLchar* source_data = reinterpret_cast<const GLchar*>(source.data());
-		glShaderSource(shader, 1, &source_data, nullptr);
-		glCompileShader(shader);
-
-		GLint is_compiled = 0;
-		glGetShaderiv(shader, GL_COMPILE_STATUS, &is_compiled);
-		if (is_compiled == GL_FALSE)
+		for (size_t j = 0; j < width; j++)
 		{
-			GLint max_length = 0;
-			glGetShaderiv(shader, GL_INFO_LOG_LENGTH, &max_length);
-
-			std::string info_log(max_length, '\0');
-			GLchar* info_log_data = reinterpret_cast<GLchar*>(&info_log[0]);
-			glGetShaderInfoLog(shader, max_length, nullptr, info_log_data);
-
-			glDeleteShader(shader);
-			std::cerr << "Compilation of shader failed: " << info_log << std::endl;
-
-			return 0;
+			red.push_back(data[i * width + j].x);
+			green.push_back(data[i * width + j].y);
+			blue.push_back(data[i * width + j].z);
 		}
 	}
-
-	GL_CHECK_ERRORS();
-
-	return shader;
-}
-
-GLuint createGLProgram(
-	const std::string& vert_source,
-	const std::string& frag_source
-)
-{
-	GLuint vert_shader = createGLShader(vert_source, GL_VERTEX_SHADER);
-	if (vert_shader == 0)
-		return 0;
-
-	GLuint frag_shader = createGLShader(frag_source, GL_FRAGMENT_SHADER);
-	if (frag_shader == 0)
-	{
-		glDeleteShader(vert_shader);
-		return 0;
-	}
-
-	GLuint program = glCreateProgram();
-	glAttachShader(program, vert_shader);
-	glAttachShader(program, frag_shader);
-	glLinkProgram(program);
-
-	GLint is_linked = 0;
-	glGetProgramiv(program, GL_LINK_STATUS, &is_linked);
-	if (is_linked == GL_FALSE)
-	{
-		GLint max_length = 0;
-		glGetProgramiv(program, GL_INFO_LOG_LENGTH, &max_length);
-
-		std::string info_log(max_length, '\0');
-		GLchar* info_log_data = reinterpret_cast<GLchar*>(&info_log[0]);
-		glGetProgramInfoLog(program, max_length, nullptr, info_log_data);
-		std::cerr << "Linking of program failed: " << info_log << std::endl;
-
-		glDeleteProgram(program);
-		glDeleteShader(vert_shader);
-		glDeleteShader(frag_shader);
-
-		return 0;
-	}
-
-	glDetachShader(program, vert_shader);
-	glDetachShader(program, frag_shader);
-
-	GL_CHECK_ERRORS();
-
-	return program;
 }
