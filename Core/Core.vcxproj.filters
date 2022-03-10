@@ -15,6 +15,7 @@
     </Filter>
     <Filter Include="CUDA">
       <UniqueIdentifier>{5f465ce2-0b1e-4d5e-a55d-1e5b9e15b4e2}</UniqueIdentifier>
+      <Extensions>cu;cuh</Extensions>
     </Filter>
   </ItemGroup>
   <ItemGroup>
@@ -27,6 +28,12 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="Renderer.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Hello.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Camera.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

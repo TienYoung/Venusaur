@@ -2,11 +2,7 @@
 
 #include <cuda/helpers.h>
 
-struct Params
-{
-    uchar4* image;
-    unsigned int image_width;
-};
+#include "Hello.h"
 
 struct RayGenData
 {

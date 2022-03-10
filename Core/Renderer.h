@@ -14,7 +14,7 @@
 
 #include <direct.h>
 
-#include <gl/gl3w.h>
+#include <GL/gl3w.h>
 
 struct Params
 {
@@ -42,7 +42,6 @@ static void context_log_cb(unsigned int level, const char* tag, const char* mess
 	std::cerr << "[" << std::setw(2) << level << "][" << std::setw(12) << tag << "]: "
 		<< message << "\n";
 }
-
 
 OptixDeviceContext context = nullptr;
 OptixModule module = nullptr;
