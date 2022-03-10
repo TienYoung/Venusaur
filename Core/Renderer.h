@@ -315,6 +315,8 @@ GLuint createGLShader(const std::string& source, GLuint shader_type)
 		}
 	}
 
+	GL_CHECK_ERRORS();
+
 	return shader;
 }
 
@@ -360,6 +362,8 @@ GLuint createGLProgram(
 
 	glDetachShader(program, vert_shader);
 	glDetachShader(program, frag_shader);
+
+	GL_CHECK_ERRORS();
 
 	return program;
 }

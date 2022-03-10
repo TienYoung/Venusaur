@@ -2,6 +2,7 @@
 
 #include <GL/gl3w.h>
 #include <GLFW/glfw3.h>
+#include <cassert>
 
 static void ErrorCallback(int error, const char* description)
 {
@@ -85,19 +86,19 @@ int main(int argc, char* argv[])
 
 	// Create resource.
 	GLuint vao;
-	glGenVertexArrays(1, &vao);
-	glBindVertexArray(vao);
+	GL_CHECK(glGenVertexArrays(1, &vao));
+	GL_CHECK(glBindVertexArray(vao));
 
 	GLuint program = createGLProgram(s_vert_source, s_frag_source);
 	GLint texLoc = glGetUniformLocation(program, "render_tex");
+	assert(texLoc != -1);
 	GLuint renderTex;
-	glGenTextures(1, &renderTex);
-	glBindTexture(GL_TEXTURE_2D, renderTex);
-	glTextureParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-	glTextureParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-	glTextureParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-	glTextureParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-
+	GL_CHECK(glGenTextures(1, &renderTex));
+	GL_CHECK(glBindTexture(GL_TEXTURE_2D, renderTex));
+	GL_CHECK(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST));
+	GL_CHECK(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST));
+	GL_CHECK(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE));
+	GL_CHECK(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE));
 	static const GLfloat g_quad_vertex_buffer_data[] = {
 	-1.0f, -1.0f, 0.0f,
 	 1.0f, -1.0f, 0.0f,
@@ -113,24 +114,27 @@ int main(int argc, char* argv[])
 	glBindBuffer(GL_ARRAY_BUFFER, vbo);
 	glBufferData(GL_ARRAY_BUFFER, sizeof(g_quad_vertex_buffer_data), g_quad_vertex_buffer_data, GL_STATIC_DRAW);
 
+	GL_CHECK_ERRORS();
+
+	auto dataPtr = Launch(width, height);
+	std::vector<uchar4> data(dataPtr, dataPtr + width * height);
 	GLuint pbo = 0u;
 	glGenBuffers(1, &pbo);
 	glBindBuffer(GL_ARRAY_BUFFER, pbo);
-	auto data = Launch(width, height);
-	glBufferData(GL_ARRAY_BUFFER, sizeof(uchar4) * width * height, data, GL_STREAM_DRAW);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(uchar4) * width * height, (void*)data.data(), GL_STREAM_DRAW);
 	glBindBuffer(GL_ARRAY_BUFFER, 0);
 
 
 	// Rendering.
 	while (!glfwWindowShouldClose(window))
 	{
-		glBindFramebuffer(GL_FRAMEBUFFER, 0);
+		GL_CHECK(glBindFramebuffer(GL_FRAMEBUFFER, 0));
 		glViewport(0, 0, width, height);
 
-		glClearColor(0.3f, 0.6f, 0.2f, 1.0f);
-		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+		GL_CHECK(glClearColor(0.3f, 0.6f, 0.2f, 1.0f));
+		GL_CHECK(glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT));
 
-		glUseProgram(program);
+		GL_CHECK(glUseProgram(program));
 
 		glActiveTexture(GL_TEXTURE0);
 		glBindTexture(GL_TEXTURE_2D, renderTex);
