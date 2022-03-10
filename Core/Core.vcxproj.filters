@@ -38,7 +38,7 @@
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <CustomBuild Include="Hello.cu">
+    <CustomBuild Include="inOneWeekend.cu">
       <Filter>CUDA</Filter>
     </CustomBuild>
   </ItemGroup>

@@ -158,7 +158,7 @@
     <ClCompile Include="Core.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <CustomBuild Include="Hello.cu">
+    <CustomBuild Include="inOneWeekend.cu">
       <FileType>Document</FileType>
     </CustomBuild>
   </ItemGroup>
