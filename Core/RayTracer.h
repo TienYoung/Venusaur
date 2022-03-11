@@ -6,7 +6,7 @@
 
 void Init();
  
-uchar4* Launch(int width, int height);
+uchar3* Launch(int width, int height);
 
 void Cleanup();
 

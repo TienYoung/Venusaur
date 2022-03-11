@@ -30,10 +30,10 @@
     <ClInclude Include="Exception.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="inOneWeekend.h">
+    <ClInclude Include="RayTracer.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="RayTracer.h">
+    <ClInclude Include="inOneWeekend.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

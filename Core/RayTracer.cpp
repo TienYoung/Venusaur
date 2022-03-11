@@ -47,8 +47,8 @@ OptixProgramGroup miss_prog_group = nullptr;
 OptixPipeline pipeline = nullptr;
 OptixShaderBindingTable sbt = {};
 
-uchar4* device_pixels = nullptr;
-std::vector<uchar4> host_pixels;
+uchar3* device_pixels = nullptr;
+std::vector<uchar3> host_pixels;
 
 void Init()
 {
@@ -222,7 +222,7 @@ void Init()
 	}
 }
 
-uchar4* Launch(int width, int height)
+uchar3* Launch(int width, int height)
 {
 	//
 	// Create cuda device resource.
@@ -230,7 +230,7 @@ uchar4* Launch(int width, int height)
 	CUDA_CHECK(cudaFree(reinterpret_cast<void*>(device_pixels)));
 	CUDA_CHECK(cudaMalloc(
 		reinterpret_cast<void**>(&device_pixels),
-		width * height * sizeof(uchar4)
+		width * height * sizeof(uchar3)
 	));
 
 	CUstream stream;
@@ -238,7 +238,6 @@ uchar4* Launch(int width, int height)
 
 	Params params;
 	params.image = device_pixels;
-	params.image_width = width;
 
 	CUdeviceptr d_param;
 	CUDA_CHECK(cudaMalloc(reinterpret_cast<void**>(&d_param), sizeof(Params)));
@@ -259,7 +258,7 @@ uchar4* Launch(int width, int height)
 	CUDA_CHECK(cudaMemcpy(
 		static_cast<void*>(host_pixels.data()),
 		device_pixels,
-		width * height * sizeof(uchar4),
+		width * height * sizeof(uchar3),
 		cudaMemcpyDeviceToHost
 	));
 
@@ -282,7 +281,7 @@ void Cleanup()
 void Trace(int width, int height, std::vector<unsigned char>& red, std::vector<unsigned char>& green, std::vector<unsigned char>& blue)
 {
 	Init();
-	uchar4* data = Launch(width, height);
+	uchar3* data = Launch(width, height);
 	Cleanup();
 	for (size_t i = 0; i < height; i++)
 	{
@@ -294,3 +293,4 @@ void Trace(int width, int height, std::vector<unsigned char>& red, std::vector<u
 		}
 	}
 }
+

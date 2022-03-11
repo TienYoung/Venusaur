@@ -36,6 +36,5 @@ __global__ void __raygen__draw_solid_color()
     int ig = static_cast<int>(255.999 * g);
     int ib = static_cast<int>(255.999 * b);
 
-    params.image[launch_index.y * params.image_width + launch_index.x] =
-        make_uchar4(ir, ig, ib, 1);
+    params.image[launch_index.y * image_width + launch_index.x] = make_uchar3(ir, ig, ib);
 }
