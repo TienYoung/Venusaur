@@ -31,8 +31,8 @@
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <CustomBuild Include="Hello.cu">
+    <CudaCompile Include="Hello.cu">
       <Filter>CUDA</Filter>
-    </CustomBuild>
+    </CudaCompile>
   </ItemGroup>
 </Project>
