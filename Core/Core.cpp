@@ -33,17 +33,28 @@ int main(int argc, char* argv[])
 	CHECK_NVJPEG(nvjpegCreateSimple(&nv_handle));
 	CHECK_NVJPEG(nvjpegEncoderStateCreate(nv_handle, &nv_enc_state, stream));
 	CHECK_NVJPEG(nvjpegEncoderParamsCreate(nv_handle, &nv_enc_params, stream));
-	CHECK_NVJPEG(nvjpegEncoderParamsSetEncoding(nv_enc_params, NVJPEG_ENCODING_BASELINE_DCT, stream));
+	//CHECK_NVJPEG(nvjpegEncoderParamsSetEncoding(nv_enc_params, NVJPEG_ENCODING_BASELINE_DCT, stream));
 	CHECK_NVJPEG(nvjpegEncoderParamsSetQuality(nv_enc_params, 70, stream));
-	CHECK_NVJPEG(nvjpegEncoderParamsSetOptimizedHuffman(nv_enc_params, 0, stream));
+	//CHECK_NVJPEG(nvjpegEncoderParamsSetOptimizedHuffman(nv_enc_params, 0, stream));
 	CHECK_NVJPEG(nvjpegEncoderParamsSetSamplingFactors(nv_enc_params, NVJPEG_CSS_444, stream));
 
 
 	nvjpegImage_t nv_image;
+
+	cudaMalloc(reinterpret_cast<void**>(&nv_image.channel[0]), width * height);
+	cudaMemcpy(nv_image.channel[0], red.data(), width * height, cudaMemcpyHostToDevice);
+
+	cudaMalloc(reinterpret_cast<void**>(&nv_image.channel[1]), width * height);
+	cudaMemcpy(nv_image.channel[1], green.data(), width * height, cudaMemcpyHostToDevice);
+
+	cudaMalloc(reinterpret_cast<void**>(&nv_image.channel[2]), width * height);
+	cudaMemcpy(nv_image.channel[2], blue.data(), width * height, cudaMemcpyHostToDevice);
+
+
 	// Fill nv_image with image data, let¡¯s say 640x480 image in RGB format
-	nv_image.channel[0] = red.data();
-	nv_image.channel[1] = green.data();
-	nv_image.channel[2] = blue.data();
+	//nv_image.channel[0] = red.data();
+	//nv_image.channel[1] = green.data();
+	//nv_image.channel[2] = blue.data();
 	//nv_image.channel[3] = &data->w;
 	nv_image.pitch[0] = width;
 	nv_image.pitch[1] = width;
