@@ -20,9 +20,50 @@ static void KeyCallback(GLFWwindow* window, int32_t key, int32_t /*scancode*/, i
 	}
 }
 
+void message_callback(GLenum source, GLenum type, GLuint id, GLenum severity, GLsizei length, GLchar const* message, void const* user_param)
+{
+	// ignore non-significant error/warning codes
+	if (id == 131169 || id == 131185 || id == 131218 || id == 131204) return;
+
+	std::cout << "---------------" << std::endl;
+	std::cout << "Debug message (" << id << "): " << message << std::endl;
+
+	switch (source)
+	{
+		case GL_DEBUG_SOURCE_API:             std::cout << "Source: API"; break;
+		case GL_DEBUG_SOURCE_WINDOW_SYSTEM:   std::cout << "Source: Window System"; break;
+		case GL_DEBUG_SOURCE_SHADER_COMPILER: std::cout << "Source: Shader Compiler"; break;
+		case GL_DEBUG_SOURCE_THIRD_PARTY:     std::cout << "Source: Third Party"; break;
+		case GL_DEBUG_SOURCE_APPLICATION:     std::cout << "Source: Application"; break;
+		case GL_DEBUG_SOURCE_OTHER:           std::cout << "Source: Other"; break;
+	} std::cout << std::endl;
+
+	switch (type)
+	{
+		case GL_DEBUG_TYPE_ERROR:               std::cout << "Type: Error"; break;
+		case GL_DEBUG_TYPE_DEPRECATED_BEHAVIOR: std::cout << "Type: Deprecated Behaviour"; break;
+		case GL_DEBUG_TYPE_UNDEFINED_BEHAVIOR:  std::cout << "Type: Undefined Behaviour"; break;
+		case GL_DEBUG_TYPE_PORTABILITY:         std::cout << "Type: Portability"; break;
+		case GL_DEBUG_TYPE_PERFORMANCE:         std::cout << "Type: Performance"; break;
+		case GL_DEBUG_TYPE_MARKER:              std::cout << "Type: Marker"; break;
+		case GL_DEBUG_TYPE_PUSH_GROUP:          std::cout << "Type: Push Group"; break;
+		case GL_DEBUG_TYPE_POP_GROUP:           std::cout << "Type: Pop Group"; break;
+		case GL_DEBUG_TYPE_OTHER:               std::cout << "Type: Other"; break;
+	} std::cout << std::endl;
+
+	switch (severity)
+	{
+		case GL_DEBUG_SEVERITY_HIGH:         std::cout << "Severity: high"; break;
+		case GL_DEBUG_SEVERITY_MEDIUM:       std::cout << "Severity: medium"; break;
+		case GL_DEBUG_SEVERITY_LOW:          std::cout << "Severity: low"; break;
+		case GL_DEBUG_SEVERITY_NOTIFICATION: std::cout << "Severity: notification"; break;
+	} std::cout << std::endl;
+	std::cout << std::endl;
+}
+
 
 const std::string s_vert_source = R"(
-#version 330 core
+#version 460 core
 
 layout(location = 0) in vec3 vertexPosition_modelspace;
 out vec2 UV;
@@ -35,7 +76,7 @@ void main()
 )";
 
 const std::string s_frag_source = R"(
-#version 330 core
+#version 460 core
 
 in vec2 UV;
 out vec3 color;
@@ -65,6 +106,10 @@ int main(int argc, char* argv[])
 	if (!glfwInit())
 		return -1;
 
+	glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
+	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 6);
+	glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+
 	window = glfwCreateWindow(width, height, "Hello Optix", nullptr, nullptr);
 	if (!window)
 	{
@@ -72,8 +117,9 @@ int main(int argc, char* argv[])
 		return -1;
 	}
 
-	glfwMakeContextCurrent(window);
 	glfwSetKeyCallback(window, KeyCallback);
+
+	glfwMakeContextCurrent(window);
 	
 	// Init gl3w.
 	if (gl3wInit())
@@ -83,77 +129,95 @@ int main(int argc, char* argv[])
 		return -1;
 	}
 
+	glEnable(GL_DEBUG_OUTPUT);
+	glDebugMessageCallback(message_callback, nullptr);
+
 
 	// Create resource.
-	GLuint vao;
-	GL_CHECK(glGenVertexArrays(1, &vao));
-	GL_CHECK(glBindVertexArray(vao));
-
-	GLuint program = createGLProgram(s_vert_source, s_frag_source);
-	GLint texLoc = glGetUniformLocation(program, "render_tex");
-	assert(texLoc != -1);
-	GLuint renderTex;
-	GL_CHECK(glGenTextures(1, &renderTex));
-	GL_CHECK(glBindTexture(GL_TEXTURE_2D, renderTex));
-	GL_CHECK(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST));
-	GL_CHECK(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST));
-	GL_CHECK(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE));
-	GL_CHECK(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE));
-	static const GLfloat g_quad_vertex_buffer_data[] = {
-	-1.0f, -1.0f, 0.0f,
-	 1.0f, -1.0f, 0.0f,
-	-1.0f,  1.0f, 0.0f,
-
-	-1.0f,  1.0f, 0.0f,
-	 1.0f, -1.0f, 0.0f,
-	 1.0f,  1.0f, 0.0f,
+	static const GLfloat vertices[] = {
+		-1.0f, -1.0f , 0.0f,
+		-1.0f,  1.0f , 0.0f,
+		 1.0f,  1.0f , 0.0f,
+		 1.0f, -1.0f , 0.0f
 	};
 
-	GLuint vbo;
-	glGenBuffers(1, &vbo);
-	glBindBuffer(GL_ARRAY_BUFFER, vbo);
-	glBufferData(GL_ARRAY_BUFFER, sizeof(g_quad_vertex_buffer_data), g_quad_vertex_buffer_data, GL_STATIC_DRAW);
+	static const GLuint indices[] = { 0,2,1,0,3,2 };
 
-	GL_CHECK_ERRORS();
+	// VBO
+	GLuint vbo;
+	(glCreateBuffers(1, &vbo));
+	(glNamedBufferStorage(vbo, sizeof(vertices), vertices, GL_DYNAMIC_STORAGE_BIT));
+
+	// EBO
+	GLuint ebo;
+	(glCreateBuffers(1, &ebo));
+	(glNamedBufferStorage(ebo, sizeof(indices), indices, GL_DYNAMIC_STORAGE_BIT));
+
+	// VAO
+	GLuint vao;
+	(glCreateVertexArrays(1, &vao));
+
+	(glEnableVertexArrayAttrib(vao, 0));
+	(glVertexArrayAttribBinding(vao, 0, 0));
+	(glVertexArrayAttribFormat(vao, 0, 3, GL_FLOAT, GL_FALSE, 0));
+
+	(glVertexArrayVertexBuffer(vao, 0, vbo, 0, 3 * sizeof(GLfloat)));
+	glVertexArrayElementBuffer(vao, ebo);
 
 	auto dataPtr = Launch(width, height);
 	std::vector<uchar4> data(dataPtr, dataPtr + width * height);
-	GLuint pbo = 0u;
-	glGenBuffers(1, &pbo);
-	glBindBuffer(GL_ARRAY_BUFFER, pbo);
-	glBufferData(GL_ARRAY_BUFFER, sizeof(uchar4) * width * height, (void*)data.data(), GL_STREAM_DRAW);
-	glBindBuffer(GL_ARRAY_BUFFER, 0);
+
+	// PBO
+	GLuint pbo;
+	(glCreateBuffers(1, &pbo));
+	(glNamedBufferStorage(pbo, sizeof(uchar4) * width * height, (void*)data.data(), GL_DYNAMIC_STORAGE_BIT));
+
+	GLuint program = createGLProgram(s_vert_source, s_frag_source);
+
+	// Texture
+	GLint texLoc = glGetUniformLocation(program, "render_tex");
+	assert(texLoc != -1);
+	GLuint renderTex;
+	(glCreateTextures(GL_TEXTURE_2D, 1, &renderTex));
+
+	(glTextureParameteri(renderTex, GL_TEXTURE_MAG_FILTER, GL_NEAREST));
+	(glTextureParameteri(renderTex, GL_TEXTURE_MIN_FILTER, GL_NEAREST));
+	(glTextureParameteri(renderTex, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE));
+	(glTextureParameteri(renderTex, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE));
+
+	(glTextureStorage2D(renderTex, 1, GL_RGBA8, width, height));
+
+
 
 
 	// Rendering.
 	while (!glfwWindowShouldClose(window))
 	{
-		GL_CHECK(glBindFramebuffer(GL_FRAMEBUFFER, 0));
-		glViewport(0, 0, width, height);
+		(glBindFramebuffer(GL_FRAMEBUFFER, 0));
+		(glViewport(0, 0, width, height));
 
-		GL_CHECK(glClearColor(0.3f, 0.6f, 0.2f, 1.0f));
-		GL_CHECK(glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT));
+		const GLfloat clearColor[] = { 0.3f, 0.2f, 0.6f, 1.0f };
+		const GLfloat* clearDepth = 0;
+		(glClearNamedFramebufferfv(0, GL_COLOR, 0, clearColor));
+		//(glClearNamedFramebufferfv(0, GL_DEPTH, 0, clearDepth));
 
-		GL_CHECK(glUseProgram(program));
+		(glUseProgram(program));
 
-		glActiveTexture(GL_TEXTURE0);
-		glBindTexture(GL_TEXTURE_2D, renderTex);
+		glBindTextureUnit(0, renderTex);
+
 		glBindBuffer(GL_PIXEL_UNPACK_BUFFER, pbo);
-
 		glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
 
-		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
-		glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
-		glUniform1i(texLoc, 0);
+		(glTextureSubImage2D(renderTex, 0, 0, 0, width, height, GL_RGBA, GL_UNSIGNED_BYTE, nullptr));
 
-		glEnableVertexAttribArray(0);
-		glBindBuffer(GL_ARRAY_BUFFER, vbo);
-		glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, (void*)0);
+		glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
+
+		glUniform1i(texLoc, 0);
 
 		glDisable(GL_FRAMEBUFFER_SRGB);
 
-		glDrawArrays(GL_TRIANGLES, 0, 6);
-		glDisableVertexAttribArray(0);
+		glBindVertexArray(vao);
+		glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, nullptr);
 
 		glfwSwapBuffers(window);
 		glfwPollEvents();
