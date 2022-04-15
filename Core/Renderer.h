@@ -16,11 +16,7 @@
 
 #include <gl/gl3w.h>
 
-struct Params
-{
-	float4* image;
-	unsigned int image_width;
-};
+#include "Hello.h"
 
 struct RayGenData
 {
@@ -249,6 +245,7 @@ float4* Launch(int width, int height)
 	Params params;
 	params.image = device_pixels;
 	params.image_width = width;
+	params.image_height = height;
 
 	CUdeviceptr d_param;
 	CUDA_CHECK(cudaMalloc(reinterpret_cast<void**>(&d_param), sizeof(Params)));

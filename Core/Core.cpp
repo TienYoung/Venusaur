@@ -91,8 +91,8 @@ void main()
 )";
 
 const auto aspect_ratio = 16.0 / 9.0;
-int         width = 400;
-int         height = static_cast<int>(width / aspect_ratio);
+int         width = 256;
+int         height = 256;
 
 int main(int argc, char* argv[])
 {
@@ -214,7 +214,7 @@ int main(int argc, char* argv[])
 
 		glUniform1i(texLoc, 0);
 
-		glEnable(GL_FRAMEBUFFER_SRGB);
+		//glEnable(GL_FRAMEBUFFER_SRGB);
 
 		glBindVertexArray(vao);
 		glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, nullptr);
