@@ -90,9 +90,9 @@ void main()
 }
 )";
 
-
-int         width = 1920;
-int         height = 1200;
+const auto aspect_ratio = 16.0 / 9.0;
+int         width = 400;
+int         height = static_cast<int>(width / aspect_ratio);
 
 int main(int argc, char* argv[])
 {
@@ -165,12 +165,12 @@ int main(int argc, char* argv[])
 	glVertexArrayElementBuffer(vao, ebo);
 
 	auto dataPtr = Launch(width, height);
-	std::vector<uchar4> data(dataPtr, dataPtr + width * height);
+	std::vector<float4> data(dataPtr, dataPtr + width * height);
 
 	// PBO
 	GLuint pbo;
 	(glCreateBuffers(1, &pbo));
-	(glNamedBufferStorage(pbo, sizeof(uchar4) * width * height, (void*)data.data(), GL_DYNAMIC_STORAGE_BIT));
+	(glNamedBufferStorage(pbo, sizeof(float4) * width * height, (void*)data.data(), GL_DYNAMIC_STORAGE_BIT));
 
 	GLuint program = createGLProgram(s_vert_source, s_frag_source);
 
@@ -185,7 +185,7 @@ int main(int argc, char* argv[])
 	(glTextureParameteri(renderTex, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE));
 	(glTextureParameteri(renderTex, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE));
 
-	(glTextureStorage2D(renderTex, 1, GL_RGBA8, width, height));
+	(glTextureStorage2D(renderTex, 1, GL_RGBA8_SNORM, width, height));
 
 
 
@@ -208,13 +208,13 @@ int main(int argc, char* argv[])
 		glBindBuffer(GL_PIXEL_UNPACK_BUFFER, pbo);
 		glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
 
-		(glTextureSubImage2D(renderTex, 0, 0, 0, width, height, GL_RGBA, GL_UNSIGNED_BYTE, nullptr));
+		(glTextureSubImage2D(renderTex, 0, 0, 0, width, height, GL_RGBA, GL_FLOAT, nullptr));
 
 		glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
 
 		glUniform1i(texLoc, 0);
 
-		glDisable(GL_FRAMEBUFFER_SRGB);
+		glEnable(GL_FRAMEBUFFER_SRGB);
 
 		glBindVertexArray(vao);
 		glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, nullptr);

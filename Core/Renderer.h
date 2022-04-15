@@ -18,7 +18,7 @@
 
 struct Params
 {
-	uchar4* image;
+	float4* image;
 	unsigned int image_width;
 };
 
@@ -52,8 +52,8 @@ OptixProgramGroup miss_prog_group = nullptr;
 OptixPipeline pipeline = nullptr;
 OptixShaderBindingTable sbt = {};
 
-uchar4* device_pixels = nullptr;
-std::vector<uchar4> host_pixels;
+float4* device_pixels = nullptr;
+std::vector<float4> host_pixels;
 void Init()
 {
 	char log[2048]; // For error reporting from OptiX creation functions
@@ -232,7 +232,7 @@ void Init()
 
 }
  
-uchar4* Launch(int width, int height)
+float4* Launch(int width, int height)
 {
 	//
 	// Create cuda device resource.
@@ -240,7 +240,7 @@ uchar4* Launch(int width, int height)
 	CUDA_CHECK(cudaFree(reinterpret_cast<void*>(device_pixels)));
 	CUDA_CHECK(cudaMalloc(
 		reinterpret_cast<void**>(&device_pixels),
-		width * height * sizeof(uchar4)
+		width * height * sizeof(float4)
 	));
 
 	CUstream stream;
@@ -269,7 +269,7 @@ uchar4* Launch(int width, int height)
 	CUDA_CHECK(cudaMemcpy(
 		static_cast<void*>(host_pixels.data()),
 		device_pixels,
-		width * height * sizeof(uchar4),
+		width * height * sizeof(float4),
 		cudaMemcpyDeviceToHost
 	));
 
