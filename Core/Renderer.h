@@ -46,6 +46,9 @@ OptixProgramGroup hitgroup_prog_group = nullptr;
 OptixPipeline pipeline = nullptr;
 OptixShaderBindingTable sbt = {};
 
+const int32_t OBJ_COUNT = 2;
+static uint32_t g_obj_indices[OBJ_COUNT] = { 0, 1 };
+
 float4* device_pixels = nullptr;
 std::vector<float4> host_pixels;
 
@@ -93,13 +96,26 @@ void Init()
 		accel_options.operation = OPTIX_BUILD_OPERATION_BUILD;
 
 		// AABB build input
-		OptixAabb   aabb = { -1.5f, -1.5f, -1.5f, 1.5f, 1.5f, 1.5f };
+		OptixAabb   aabbs[OBJ_COUNT] = {
+			{-1.5f, -1.5f, -1.5f, 1.5f, 1.5f, 1.5f},
+			{ -100.5f, -100.5f, -100.5f, 100.5f, 100.5f, 100.5f } 
+		};
 		CUdeviceptr d_aabb_buffer;
-		CUDA_CHECK(cudaMalloc(reinterpret_cast<void**>(&d_aabb_buffer), sizeof(OptixAabb)));
+		CUDA_CHECK(cudaMalloc(reinterpret_cast<void**>(&d_aabb_buffer), OBJ_COUNT * sizeof(OptixAabb)));
 		CUDA_CHECK(cudaMemcpy(
 			reinterpret_cast<void*>(d_aabb_buffer),
-			&aabb,
-			sizeof(OptixAabb),
+			aabbs,
+			OBJ_COUNT * sizeof(OptixAabb),
+			cudaMemcpyHostToDevice
+		));
+
+		CUdeviceptr  d_obj_indices = 0;
+		const size_t obj_indices_size_in_bytes = OBJ_COUNT * sizeof(uint32_t);
+		CUDA_CHECK(cudaMalloc(reinterpret_cast<void**>(&d_obj_indices), obj_indices_size_in_bytes));
+		CUDA_CHECK(cudaMemcpy(
+			reinterpret_cast<void*>(d_obj_indices),
+			g_obj_indices,
+			obj_indices_size_in_bytes,
 			cudaMemcpyHostToDevice
 		));
 
@@ -107,11 +123,13 @@ void Init()
 
 		aabb_input.type = OPTIX_BUILD_INPUT_TYPE_CUSTOM_PRIMITIVES;
 		aabb_input.customPrimitiveArray.aabbBuffers = &d_aabb_buffer;
-		aabb_input.customPrimitiveArray.numPrimitives = 1;
+		aabb_input.customPrimitiveArray.numPrimitives = 2;
 
-		uint32_t aabb_input_flags[1] = { OPTIX_GEOMETRY_FLAG_NONE };
+		uint32_t aabb_input_flags[2] = { OPTIX_GEOMETRY_FLAG_NONE };
 		aabb_input.customPrimitiveArray.flags = aabb_input_flags;
-		aabb_input.customPrimitiveArray.numSbtRecords = 1;
+		aabb_input.customPrimitiveArray.numSbtRecords = OBJ_COUNT;
+		aabb_input.customPrimitiveArray.sbtIndexOffsetBuffer = d_obj_indices;
+		aabb_input.customPrimitiveArray.sbtIndexOffsetSizeInBytes = sizeof(uint32_t);
 
 		OptixAccelBufferSizes gas_buffer_sizes;
 		OPTIX_CHECK(optixAccelComputeMemoryUsage(context, &accel_options, &aabb_input, 1, &gas_buffer_sizes));
@@ -146,6 +164,7 @@ void Init()
 
 		CUDA_CHECK(cudaFree((void*)d_temp_buffer_gas));
 		CUDA_CHECK(cudaFree((void*)d_aabb_buffer));
+		CUDA_CHECK(cudaFree((void*)d_obj_indices));
 
 		size_t compacted_gas_size;
 		CUDA_CHECK(cudaMemcpy(&compacted_gas_size, (void*)emitProperty.result, sizeof(size_t), cudaMemcpyDeviceToHost));
@@ -178,7 +197,7 @@ void Init()
 		pipeline_compile_options.usesMotionBlur = false;
 		pipeline_compile_options.traversableGraphFlags = OPTIX_TRAVERSABLE_GRAPH_FLAG_ALLOW_SINGLE_GAS;
 		pipeline_compile_options.numPayloadValues = 3;
-		pipeline_compile_options.numAttributeValues = 3;
+		pipeline_compile_options.numAttributeValues = 6;
 		pipeline_compile_options.exceptionFlags = OPTIX_EXCEPTION_FLAG_NONE;  // TODO: should be OPTIX_EXCEPTION_FLAG_STACK_OVERFLOW;
 		pipeline_compile_options.pipelineLaunchParamsVariableName = "params";
 
@@ -336,17 +355,23 @@ void Init()
 			cudaMemcpyHostToDevice
 		));
 
-		CUdeviceptr hitgroup_record;
+		CUdeviceptr hitgroup_records;
 		size_t      hitgroup_record_size = sizeof(HitGroupSbtRecord);
-		CUDA_CHECK(cudaMalloc(reinterpret_cast<void**>(&hitgroup_record), hitgroup_record_size));
-		HitGroupSbtRecord hg_sbt;
-		hg_sbt.data.center = { 0.0f, 0.0f, -1.0f };
-		hg_sbt.data.radius = 0.5f;
-		OPTIX_CHECK(optixSbtRecordPackHeader(hitgroup_prog_group, &hg_sbt));
+		CUDA_CHECK(cudaMalloc(reinterpret_cast<void**>(&hitgroup_records), hitgroup_record_size * OBJ_COUNT));
+		HitGroupSbtRecord hg_sbts[OBJ_COUNT];
+		hg_sbts[0].data.center = { 0.0f, 0.0f, -1.0f };
+		hg_sbts[0].data.radius = 0.5f;
+		hg_sbts[1].data.center = { 0.0f, -100.5f, -1.0f };
+		hg_sbts[1].data.radius = 100;
+		for (int i = 0; i < OBJ_COUNT; ++i)
+		{
+			OPTIX_CHECK(optixSbtRecordPackHeader(hitgroup_prog_group, &hg_sbts[i]));
+		}
+
 		CUDA_CHECK(cudaMemcpy(
-			reinterpret_cast<void*>(hitgroup_record),
-			&hg_sbt,
-			hitgroup_record_size,
+			reinterpret_cast<void*>(hitgroup_records),
+			hg_sbts,
+			hitgroup_record_size * OBJ_COUNT,
 			cudaMemcpyHostToDevice
 		));
 
@@ -354,9 +379,9 @@ void Init()
 		sbt.missRecordBase = miss_record;
 		sbt.missRecordStrideInBytes = sizeof(MissSbtRecord);
 		sbt.missRecordCount = 1;
-		sbt.hitgroupRecordBase = hitgroup_record;
+		sbt.hitgroupRecordBase = hitgroup_records;
 		sbt.hitgroupRecordStrideInBytes = sizeof(HitGroupSbtRecord);
-		sbt.hitgroupRecordCount = 1;
+		sbt.hitgroupRecordCount = OBJ_COUNT;
 	}
 
 
