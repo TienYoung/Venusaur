@@ -16,6 +16,9 @@
     <Filter Include="CUDA">
       <UniqueIdentifier>{5f465ce2-0b1e-4d5e-a55d-1e5b9e15b4e2}</UniqueIdentifier>
     </Filter>
+    <Filter Include="sutil">
+      <UniqueIdentifier>{8ad8a6bb-d058-4104-9208-f9fedf161df2}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Core.cpp">
@@ -31,6 +34,12 @@
     </ClInclude>
     <ClInclude Include="Hello.h">
       <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Preprocessor.h">
+      <Filter>sutil</Filter>
+    </ClInclude>
+    <ClInclude Include="vec_math.h">
+      <Filter>sutil</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

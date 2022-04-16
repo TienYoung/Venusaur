@@ -18,11 +18,6 @@
 
 #include "Hello.h"
 
-struct RayGenData
-{
-	float r, g, b;
-};
-
 template <typename T>
 struct SbtRecord
 {
@@ -50,8 +45,24 @@ OptixShaderBindingTable sbt = {};
 
 float4* device_pixels = nullptr;
 std::vector<float4> host_pixels;
+
+// Image
+const auto aspect_ratio = 16.0f / 9.0f;
+const int image_width = 400;
+const int image_height = static_cast<int>(image_width / aspect_ratio);
 void Init()
 {
+	// Camera
+	auto viewport_height = 2.0f;
+	auto viewport_width = aspect_ratio * viewport_height;
+	auto focal_length = 1.0f;
+
+	auto origin = make_float3(0, 0, 0);
+	auto horizontal = make_float3(viewport_width, 0, 0);
+	auto vertical = make_float3(0, viewport_height, 0);
+	auto lower_left_corner = origin - horizontal / 2 - vertical / 2 - make_float3(0, 0, focal_length);
+
+
 	char log[2048]; // For error reporting from OptiX creation functions
 
 	//
@@ -69,6 +80,37 @@ void Init()
 		OPTIX_CHECK(optixDeviceContextCreate(cuCtx, &options, &context));
 	}
 
+	////
+	//// accel handling
+	////
+	//OptixTraversableHandle gas_handle;
+	//CUdeviceptr            d_gas_output_buffer;
+	//{
+	//	// Use default options for simplicity.  In a real use case we would want to
+	//	// enable compaction, etc
+	//	OptixAccelBuildOptions accel_options = {};
+	//	accel_options.buildFlags = OPTIX_BUILD_FLAG_NONE;
+	//	accel_options.operation = OPTIX_BUILD_OPERATION_BUILD;
+
+	//	// Triangle build input: simple list of three vertices
+	//	const std::array<float3, 3> vertices =
+	//	{ {
+	//		  { -0.5f, -0.5f, 0.0f },
+	//		  {  0.5f, -0.5f, 0.0f },
+	//		  {  0.0f,  0.5f, 0.0f }
+	//	} };
+
+	//	const size_t vertices_size = sizeof(float3) * vertices.size();
+	//	CUdeviceptr d_vertices = 0;
+	//	CUDA_CHECK(cudaMalloc(reinterpret_cast<void**>(&d_vertices), vertices_size));
+	//	CUDA_CHECK(cudaMemcpy(
+	//		reinterpret_cast<void*>(d_vertices),
+	//		vertices.data(),
+	//		vertices_size,
+	//		cudaMemcpyHostToDevice
+	//	));
+	//}
+
 	//
 	// Create module
 	//
@@ -80,7 +122,7 @@ void Init()
 
 		pipeline_compile_options.usesMotionBlur = false;
 		pipeline_compile_options.traversableGraphFlags = OPTIX_TRAVERSABLE_GRAPH_FLAG_ALLOW_SINGLE_LEVEL_INSTANCING;
-		pipeline_compile_options.numPayloadValues = 2;
+		pipeline_compile_options.numPayloadValues = 3;
 		pipeline_compile_options.numAttributeValues = 2;
 		pipeline_compile_options.exceptionFlags = OPTIX_EXCEPTION_FLAG_NONE;  // TODO: should be OPTIX_EXCEPTION_FLAG_STACK_OVERFLOW;
 		pipeline_compile_options.pipelineLaunchParamsVariableName = "params";
@@ -118,7 +160,7 @@ void Init()
 		OptixProgramGroupDesc raygen_prog_group_desc = {}; //
 		raygen_prog_group_desc.kind = OPTIX_PROGRAM_GROUP_KIND_RAYGEN;
 		raygen_prog_group_desc.raygen.module = module;
-		raygen_prog_group_desc.raygen.entryFunctionName = "__raygen__draw_solid_color";
+		raygen_prog_group_desc.raygen.entryFunctionName = "__raygen__rg";
 		size_t sizeof_log = sizeof(log);
 		OPTIX_CHECK_LOG(optixProgramGroupCreate(
 			context,
@@ -133,6 +175,8 @@ void Init()
 		// Leave miss group's module and entryfunc name null
 		OptixProgramGroupDesc miss_prog_group_desc = {};
 		miss_prog_group_desc.kind = OPTIX_PROGRAM_GROUP_KIND_MISS;
+		miss_prog_group_desc.miss.module = module;
+		miss_prog_group_desc.miss.entryFunctionName = "__miss__ray_color";
 		sizeof_log = sizeof(log);
 		OPTIX_CHECK_LOG(optixProgramGroupCreate(
 			context,
@@ -150,7 +194,7 @@ void Init()
 	//
 	{
 		const uint32_t    max_trace_depth = 0;
-		OptixProgramGroup program_groups[] = { raygen_prog_group };
+		OptixProgramGroup program_groups[] = { raygen_prog_group, miss_prog_group };
 
 		OptixPipelineLinkOptions pipeline_link_options = {};
 		pipeline_link_options.maxTraceDepth = max_trace_depth;
@@ -196,7 +240,10 @@ void Init()
 		CUDA_CHECK(cudaMalloc(reinterpret_cast<void**>(&raygen_record), raygen_record_size));
 		RayGenSbtRecord rg_sbt;
 		OPTIX_CHECK(optixSbtRecordPackHeader(raygen_prog_group, &rg_sbt));
-		rg_sbt.data = { 0.462f, 0.725f, 0.f };
+		rg_sbt.data.origin = origin;
+		rg_sbt.data.horizontal = horizontal;
+		rg_sbt.data.vertical = vertical;
+		rg_sbt.data.lower_left_corner = lower_left_corner;
 		CUDA_CHECK(cudaMemcpy(
 			reinterpret_cast<void*>(raygen_record),
 			&rg_sbt,
@@ -246,6 +293,7 @@ float4* Launch(int width, int height)
 	params.image = device_pixels;
 	params.image_width = width;
 	params.image_height = height;
+	params.handle = 0;
 
 	CUdeviceptr d_param;
 	CUDA_CHECK(cudaMalloc(reinterpret_cast<void**>(&d_param), sizeof(Params)));

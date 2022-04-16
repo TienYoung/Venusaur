@@ -90,12 +90,10 @@ void main()
 }
 )";
 
-const auto aspect_ratio = 16.0 / 9.0;
-int         width = 256;
-int         height = 256;
-
 int main(int argc, char* argv[])
 {
+
+
 	// Init Optix.
 	Init();
 
@@ -110,7 +108,7 @@ int main(int argc, char* argv[])
 	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 6);
 	glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 
-	window = glfwCreateWindow(width, height, "Hello Optix", nullptr, nullptr);
+	window = glfwCreateWindow(image_width, image_height, "Hello Optix", nullptr, nullptr);
 	if (!window)
 	{
 		glfwTerminate();
@@ -164,13 +162,13 @@ int main(int argc, char* argv[])
 	(glVertexArrayVertexBuffer(vao, 0, vbo, 0, 3 * sizeof(GLfloat)));
 	glVertexArrayElementBuffer(vao, ebo);
 
-	auto dataPtr = Launch(width, height);
-	std::vector<float4> data(dataPtr, dataPtr + width * height);
+	auto dataPtr = Launch(image_width, image_height);
+	std::vector<float4> data(dataPtr, dataPtr + image_width * image_height);
 
 	// PBO
 	GLuint pbo;
 	(glCreateBuffers(1, &pbo));
-	(glNamedBufferStorage(pbo, sizeof(float4) * width * height, (void*)data.data(), GL_DYNAMIC_STORAGE_BIT));
+	(glNamedBufferStorage(pbo, sizeof(float4) * image_width * image_height, (void*)data.data(), GL_DYNAMIC_STORAGE_BIT));
 
 	GLuint program = createGLProgram(s_vert_source, s_frag_source);
 
@@ -185,7 +183,7 @@ int main(int argc, char* argv[])
 	(glTextureParameteri(renderTex, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE));
 	(glTextureParameteri(renderTex, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE));
 
-	(glTextureStorage2D(renderTex, 1, GL_RGBA8_SNORM, width, height));
+	(glTextureStorage2D(renderTex, 1, GL_RGBA8_SNORM, image_width, image_height));
 
 
 
@@ -194,7 +192,7 @@ int main(int argc, char* argv[])
 	while (!glfwWindowShouldClose(window))
 	{
 		(glBindFramebuffer(GL_FRAMEBUFFER, 0));
-		(glViewport(0, 0, width, height));
+		(glViewport(0, 0, image_width, image_height));
 
 		const GLfloat clearColor[] = { 0.3f, 0.2f, 0.6f, 1.0f };
 		const GLfloat* clearDepth = 0;
@@ -208,7 +206,7 @@ int main(int argc, char* argv[])
 		glBindBuffer(GL_PIXEL_UNPACK_BUFFER, pbo);
 		glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
 
-		(glTextureSubImage2D(renderTex, 0, 0, 0, width, height, GL_RGBA, GL_FLOAT, nullptr));
+		(glTextureSubImage2D(renderTex, 0, 0, 0, image_width, image_height, GL_RGBA, GL_FLOAT, nullptr));
 
 		glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
 

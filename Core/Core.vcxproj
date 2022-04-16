@@ -117,7 +117,7 @@
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
       <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>_DEBUG;_CONSOLE;NOMINMAX;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp17</LanguageStandard>
       <AdditionalIncludeDirectories>C:\ProgramData\NVIDIA Corporation\OptiX SDK 7.4.0\include;$(CUDA_PATH)\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
@@ -171,7 +171,9 @@
   <ItemGroup>
     <ClInclude Include="Exception.h" />
     <ClInclude Include="Hello.h" />
+    <ClInclude Include="Preprocessor.h" />
     <ClInclude Include="Renderer.h" />
+    <ClInclude Include="vec_math.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
