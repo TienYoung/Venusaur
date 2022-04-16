@@ -67,11 +67,11 @@ extern "C" __global__ void __intersection__hit_sphere()
 
 	float3 oc = origin - rtData->center;
 	auto a = dot(direction, direction);
-	auto b = 2.0 * dot(oc, direction);
+	auto half_b = dot(oc, direction);
 	auto c = dot(oc, oc) - rtData->radius * rtData->radius;
-	auto discriminant = b * b - 4 * a * c;
+	auto discriminant = half_b * half_b - a * c;
 	
-	auto t = (-b - sqrt(discriminant)) / (2.0 * a);
+	auto t = (-half_b - sqrt(discriminant)) / a;
 
 
 	if (discriminant > 0)
