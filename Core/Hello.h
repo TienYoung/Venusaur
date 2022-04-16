@@ -22,3 +22,9 @@ struct MissData
 {
 	float3 pixel_color;
 };
+
+struct SphereHitGroupData
+{
+	float3 center;
+	float radius;
+};

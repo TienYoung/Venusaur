@@ -14,6 +14,15 @@ static __forceinline__ __device__ void setPayload(float3 p)
 	optixSetPayload_2(__float_as_uint(p.z));
 }
 
+static __forceinline__ __device__ float3 getPayload()
+{
+	return make_float3(
+		__uint_as_float(optixGetPayload_0()),
+		__uint_as_float(optixGetPayload_1()),
+		__uint_as_float(optixGetPayload_2())
+	);
+}
+
 extern "C" __global__ void __raygen__rg()
 {
     uint3 launch_index = optixGetLaunchIndex();
@@ -48,6 +57,29 @@ extern "C" __global__ void __raygen__rg()
 	);
 
     params.image[launch_index.y * params.image_width + launch_index.x] = make_float4(pixel_color, 1.0f);
+}
+
+extern "C" __global__ void __intersection__hit_sphere()
+{
+	SphereHitGroupData* rtData = reinterpret_cast<SphereHitGroupData*>(optixGetSbtDataPointer());
+	float3 origin = optixGetWorldRayOrigin();
+	float3 direction = optixGetWorldRayDirection();
+
+	float3 oc = origin - rtData->center;
+	auto a = dot(direction, direction);
+	auto b = 2.0 * dot(oc, direction);
+	auto c = dot(oc, oc) - rtData->radius * rtData->radius;
+	auto discriminant = b * b - 4 * a * c;
+	
+	if (discriminant > 0)
+	{
+		optixReportIntersection(0, 0);
+	}
+}
+
+extern "C" __global__ void __closesthit__ch()
+{
+	setPayload(make_float3(1, 0, 0));
 }
 
 extern "C" __global__ void __miss__ray_color()
