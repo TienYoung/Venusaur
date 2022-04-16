@@ -71,15 +71,24 @@ extern "C" __global__ void __intersection__hit_sphere()
 	auto c = dot(oc, oc) - rtData->radius * rtData->radius;
 	auto discriminant = b * b - 4 * a * c;
 	
+	auto t = (-b - sqrt(discriminant)) / (2.0 * a);
+
+
 	if (discriminant > 0)
 	{
-		optixReportIntersection(0, 0);
+		float3 N = normalize((origin + direction * t) - make_float3(0, 0, -1));
+		N = 0.5 * (N + 1);
+		optixReportIntersection(t, 0, __float_as_uint(N.x), __float_as_uint(N.y), __float_as_uint(N.z));
 	}
 }
 
 extern "C" __global__ void __closesthit__ch()
 {
-	setPayload(make_float3(1, 0, 0));
+	setPayload(make_float3(
+		__uint_as_float(optixGetAttribute_0()),
+		__uint_as_float(optixGetAttribute_1()),
+		__uint_as_float(optixGetAttribute_2())
+	));
 }
 
 extern "C" __global__ void __miss__ray_color()
