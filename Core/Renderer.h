@@ -29,6 +29,9 @@ typedef SbtRecord<RayGenData> RayGenSbtRecord;
 typedef SbtRecord<int>        MissSbtRecord;
 typedef SbtRecord<SphereHitGroupData> HitGroupSbtRecord;
 
+#include "camera.h"
+
+
 static void context_log_cb(unsigned int level, const char* tag, const char* message, void* /*cbdata */)
 {
 	std::cerr << "[" << std::setw(2) << level << "][" << std::setw(12) << tag << "]: "
@@ -53,21 +56,13 @@ float4* device_pixels = nullptr;
 std::vector<float4> host_pixels;
 
 // Image
-const auto aspect_ratio = 16.0f / 9.0f;
+const auto aspect_ratio = 16.0 / 9.0;
 const int image_width = 400;
 const int image_height = static_cast<int>(image_width / aspect_ratio);
+const int samples_per_pixel = 100;
 void Init()
 {
-	// Camera
-	auto viewport_height = 2.0f;
-	auto viewport_width = aspect_ratio * viewport_height;
-	auto focal_length = 1.0f;
-
-	auto origin = make_float3(0, 0, 0);
-	auto horizontal = make_float3(viewport_width, 0, 0);
-	auto vertical = make_float3(0, viewport_height, 0);
-	auto lower_left_corner = origin - horizontal / 2 - vertical / 2 - make_float3(0, 0, focal_length);
-
+	camera cam;
 
 	char log[2048]; // For error reporting from OptiX creation functions
 
@@ -332,10 +327,7 @@ void Init()
 		CUDA_CHECK(cudaMalloc(reinterpret_cast<void**>(&raygen_record), raygen_record_size));
 		RayGenSbtRecord rg_sbt;
 		OPTIX_CHECK(optixSbtRecordPackHeader(raygen_prog_group, &rg_sbt));
-		rg_sbt.data.origin = origin;
-		rg_sbt.data.horizontal = horizontal;
-		rg_sbt.data.vertical = vertical;
-		rg_sbt.data.lower_left_corner = lower_left_corner;
+		cam.set_sbt(rg_sbt);	
 		CUDA_CHECK(cudaMemcpy(
 			reinterpret_cast<void*>(raygen_record),
 			&rg_sbt,
@@ -407,6 +399,7 @@ float4* Launch(int width, int height)
 	params.image = device_pixels;
 	params.image_width = width;
 	params.image_height = height;
+	params.samples_per_pixel = samples_per_pixel;
 	params.handle = gas_handle;
 
 	CUdeviceptr d_param;

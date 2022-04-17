@@ -1,10 +1,19 @@
 #include <optix.h>
 
+#include "random.cuh"
+
 #include "Hello.h"
 
 extern "C" 
 {
     __constant__ Params params;
+}
+
+static __forceinline__ __device__ void get_ray(float u, float v, float3& origin, float3& direction)
+{
+	RayGenData* rtData = reinterpret_cast<RayGenData*>(optixGetSbtDataPointer());
+	origin = rtData->origin;
+	direction = rtData->lower_left_corner + u * rtData->horizontal + v * rtData->vertical - rtData->origin;
 }
 
 static __forceinline__ __device__ void setPayload(float3 p)
@@ -26,37 +35,41 @@ static __forceinline__ __device__ float3 getPayload()
 extern "C" __global__ void __raygen__rg()
 {
     uint3 launch_index = optixGetLaunchIndex();
-    RayGenData* rtData = reinterpret_cast<RayGenData*>(optixGetSbtDataPointer());
+	const unsigned int image_index = launch_index.y * params.image_width + launch_index.x;;
 
-    auto u = double(launch_index.x) / (params.image_width - 1);
-    auto v = double(launch_index.y) / (params.image_height - 1);
+	float3 pixel_color = make_float3(0.0f);
+	for (int s = 0; s < params.samples_per_pixel; ++s)
+	{
+		unsigned int seed = tea<4>(image_index, s);
+		auto u = double(launch_index.x + rnd(seed)) / (params.image_width - 1);
+		auto v = double(launch_index.y + rnd(seed)) / (params.image_height - 1);
+		float3 origin;
+		float3 direction;
+		get_ray(u, v, origin, direction);
+		// Trace the ray against our scene hierarchy
+		unsigned int p0, p1, p2;
+		optixTrace(
+			params.handle,
+			origin,
+			direction,
+			0.0f,                // Min intersection distance
+			1e16f,               // Max intersection distance
+			0.0f,                // rayTime -- used for motion blur
+			OptixVisibilityMask(255), // Specify always visible
+			OPTIX_RAY_FLAG_NONE,
+			0,                   // SBT offset   -- See SBT discussion
+			1,                   // SBT stride   -- See SBT discussion
+			0,                   // missSBTIndex -- See SBT discussion
+			p0, p1, p2);
 
-    float3 origin = rtData->origin;
-    float3 direction = rtData->lower_left_corner + u * rtData->horizontal + v * rtData->vertical - rtData->origin;
+		pixel_color += make_float3(
+			__uint_as_float(p0),
+			__uint_as_float(p1),
+			__uint_as_float(p2)
+		);
+	}
 
-	// Trace the ray against our scene hierarchy
-	unsigned int p0, p1, p2;
-	optixTrace(
-		params.handle,
-		origin,
-		direction,
-		0.0f,                // Min intersection distance
-		1e16f,               // Max intersection distance
-		0.0f,                // rayTime -- used for motion blur
-		OptixVisibilityMask(255), // Specify always visible
-		OPTIX_RAY_FLAG_NONE,
-		0,                   // SBT offset   -- See SBT discussion
-		1,                   // SBT stride   -- See SBT discussion
-		0,                   // missSBTIndex -- See SBT discussion
-		p0, p1, p2);
-
-	float3 pixel_color = make_float3(
-		__uint_as_float(p0),
-		__uint_as_float(p1),
-		__uint_as_float(p2)
-	);
-
-    params.image[launch_index.y * params.image_width + launch_index.x] = make_float4(pixel_color, 1.0f);
+    params.image[launch_index.y * params.image_width + launch_index.x] = make_float4(pixel_color / params.samples_per_pixel, 1.0f);
 }
 
 static __forceinline__ __device__ bool set_face_normal(const float3& direction, float3& outward_normal)
