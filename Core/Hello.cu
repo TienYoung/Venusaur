@@ -9,27 +9,83 @@ extern "C"
     __constant__ Params params;
 }
 
+struct PRD
+{
+	float3 color;
+	float3 origin;
+	float3 direction;
+	unsigned int seed;
+	int hitted;
+	int depth;
+};
+
+static __forceinline__ __device__ void* unpackPointer(unsigned int i0, unsigned int i1)
+{
+	const unsigned long long uptr = static_cast<unsigned long long>(i0) << 32 | i1;
+	void* ptr = reinterpret_cast<void*>(uptr);
+	return ptr;
+}
+
+
+static __forceinline__ __device__ void  packPointer(void* ptr, unsigned int& i0, unsigned int& i1)
+{
+	const unsigned long long uptr = reinterpret_cast<unsigned long long>(ptr);
+	i0 = uptr >> 32;
+	i1 = uptr & 0x00000000ffffffff;
+}
+
+
+static __forceinline__ __device__ PRD* getPRD()
+{
+	const unsigned int u0 = optixGetPayload_0();
+	const unsigned int u1 = optixGetPayload_1();
+	return reinterpret_cast<PRD*>(unpackPointer(u0, u1));
+}
+
+static __forceinline__ __device__ float random_float(unsigned int& seed)
+{
+	// Returns a random real in [0,1).
+	return rnd(seed);
+}
+
+static __forceinline__ __device__ float random_float(unsigned int& seed, float min, float max)
+{
+	// Returns a random real in [min,max).
+	return min + (max - min) * random_float(seed);
+}
+
+//static __forceinline__ __device__ float3 random(unsigned int& seed)
+//{
+//	return make_float3(
+//		random_float(seed),
+//		random_float(seed),
+//		random_float(seed)
+//	);
+//}
+
+static __forceinline__ __device__ float3 random(unsigned int& seed, float min, float max)
+{
+	return make_float3(
+		random_float(seed, min, max),
+		random_float(seed, min, max),
+		random_float(seed, min, max)
+	);
+}
+
+static __forceinline__ __device__ float3 random_in_unit_sphere(unsigned int& seed) 
+{
+	while (true) {
+		auto p = random(seed, -1, 1);
+		if (dot(p, p) >= 1) continue;
+		return p;
+	}
+}
+
 static __forceinline__ __device__ void get_ray(float u, float v, float3& origin, float3& direction)
 {
 	RayGenData* rtData = reinterpret_cast<RayGenData*>(optixGetSbtDataPointer());
 	origin = rtData->origin;
 	direction = rtData->lower_left_corner + u * rtData->horizontal + v * rtData->vertical - rtData->origin;
-}
-
-static __forceinline__ __device__ void setPayload(float3 p)
-{
-	optixSetPayload_0(__float_as_uint(p.x));
-	optixSetPayload_1(__float_as_uint(p.y));
-	optixSetPayload_2(__float_as_uint(p.z));
-}
-
-static __forceinline__ __device__ float3 getPayload()
-{
-	return make_float3(
-		__uint_as_float(optixGetPayload_0()),
-		__uint_as_float(optixGetPayload_1()),
-		__uint_as_float(optixGetPayload_2())
-	);
 }
 
 extern "C" __global__ void __raygen__rg()
@@ -38,35 +94,45 @@ extern "C" __global__ void __raygen__rg()
 	const unsigned int image_index = launch_index.y * params.image_width + launch_index.x;;
 
 	float3 pixel_color = make_float3(0.0f);
+	unsigned int seed = tea<4>(image_index, 0);
 	for (int s = 0; s < params.samples_per_pixel; ++s)
 	{
-		unsigned int seed = tea<4>(image_index, s);
-		auto u = double(launch_index.x + rnd(seed)) / (params.image_width - 1);
-		auto v = double(launch_index.y + rnd(seed)) / (params.image_height - 1);
+		const int max_depth = 50;
+		auto u = double(launch_index.x + random_float(seed)) / (params.image_width - 1);
+		auto v = double(launch_index.y + random_float(seed)) / (params.image_height - 1);
 		float3 origin;
 		float3 direction;
 		get_ray(u, v, origin, direction);
-		// Trace the ray against our scene hierarchy
-		unsigned int p0, p1, p2;
-		optixTrace(
-			params.handle,
-			origin,
-			direction,
-			0.0f,                // Min intersection distance
-			1e16f,               // Max intersection distance
-			0.0f,                // rayTime -- used for motion blur
-			OptixVisibilityMask(255), // Specify always visible
-			OPTIX_RAY_FLAG_NONE,
-			0,                   // SBT offset   -- See SBT discussion
-			1,                   // SBT stride   -- See SBT discussion
-			0,                   // missSBTIndex -- See SBT discussion
-			p0, p1, p2);
 
-		pixel_color += make_float3(
-			__uint_as_float(p0),
-			__uint_as_float(p1),
-			__uint_as_float(p2)
-		);
+		PRD prd;
+		prd.color = make_float3(0.0f);
+		prd.origin = origin;
+		prd.direction = direction;
+		prd.seed = seed;
+		prd.hitted = false;
+		prd.depth = max_depth;
+		
+		unsigned int p0, p1;
+		packPointer(&prd, p0, p1);
+		do
+		{
+			// Trace the ray against our scene hierarchy
+			optixTrace(
+				params.handle,
+				prd.origin,
+				prd.direction,
+				0.0f,                // Min intersection distance
+				1e16f,               // Max intersection distance
+				0.0f,                // rayTime -- used for motion blur
+				OptixVisibilityMask(255), // Specify always visible
+				OPTIX_RAY_FLAG_NONE,
+				0,                   // SBT offset   -- See SBT discussion
+				1,                   // SBT stride   -- See SBT discussion
+				0,                   // missSBTIndex -- See SBT discussion
+				p0, p1);
+				pixel_color += prd.color;
+		} while (prd.depth > 0 && prd.hitted);
+		seed = prd.seed;
 	}
 
     params.image[launch_index.y * params.image_width + launch_index.x] = make_float4(pixel_color / params.samples_per_pixel, 1.0f);
@@ -123,16 +189,38 @@ extern "C" __global__ void __intersection__hit_sphere()
 
 extern "C" __global__ void __closesthit__ch()
 {
+	PRD* prd = getPRD();
+	if (--prd->depth <= 0)
+	{
+		prd->color = make_float3(0);
+		return;
+	}
+
+	float3 p = make_float3(
+		__uint_as_float(optixGetAttribute_0()),
+		__uint_as_float(optixGetAttribute_1()),
+		__uint_as_float(optixGetAttribute_2())
+	);
 	float3 normal = make_float3(
 		__uint_as_float(optixGetAttribute_3()),
 		__uint_as_float(optixGetAttribute_4()),
-		__uint_as_float(optixGetAttribute_5()));
-	setPayload(0.5 * (normal + 1));
+		__uint_as_float(optixGetAttribute_5())
+	);
+
+	float3 target = p + normal + random_in_unit_sphere(prd->seed);
+
+	//prd->color *= make_float3(0.1, 0.2, 0.0);
+	prd->origin = p;
+	prd->direction = target - p;
+	prd->hitted = true;
 }
 
 extern "C" __global__ void __miss__ray_color()
 {
     float3 unit_direction = normalize(optixGetWorldRayDirection());
     auto t = 0.5 * (unit_direction.y + 1.0);
-    setPayload(lerp(make_float3(1.0), make_float3(0.5, 0.7, 1.0), t));
+
+	PRD* prd = getPRD();
+    prd->color = lerp(make_float3(1.0), make_float3(0.5, 0.7, 1.0), t);
+	prd->hitted = false;
 }
