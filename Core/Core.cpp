@@ -212,7 +212,7 @@ int main(int argc, char* argv[])
 
 		glUniform1i(texLoc, 0);
 
-		//glEnable(GL_FRAMEBUFFER_SRGB);
+		glEnable(GL_FRAMEBUFFER_SRGB);
 
 		glBindVertexArray(vao);
 		glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, nullptr);

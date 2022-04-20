@@ -81,6 +81,19 @@ static __forceinline__ __device__ float3 random_in_unit_sphere(unsigned int& see
 	}
 }
 
+static __forceinline__ __device__ float3 random_unit_vector(unsigned int& seed)
+{
+	return normalize(random_in_unit_sphere(seed));
+}
+
+static __forceinline__ __device__ float3 random_in_hemisphere(unsigned int& seed, const float3& normal) {
+	float3 in_unit_sphere = random_in_unit_sphere(seed);
+	if (dot(in_unit_sphere, normal) > 0.0) // In the same hemisphere as the normal
+		return in_unit_sphere;
+	else
+		return -in_unit_sphere;
+}
+
 static __forceinline__ __device__ void get_ray(float u, float v, float3& origin, float3& direction)
 {
 	RayGenData* rtData = reinterpret_cast<RayGenData*>(optixGetSbtDataPointer());
@@ -121,7 +134,7 @@ extern "C" __global__ void __raygen__rg()
 				params.handle,
 				prd.origin,
 				prd.direction,
-				0.0f,                // Min intersection distance
+				0.001f,                // Min intersection distance
 				1e16f,               // Max intersection distance
 				0.0f,                // rayTime -- used for motion blur
 				OptixVisibilityMask(255), // Specify always visible
@@ -130,9 +143,9 @@ extern "C" __global__ void __raygen__rg()
 				1,                   // SBT stride   -- See SBT discussion
 				0,                   // missSBTIndex -- See SBT discussion
 				p0, p1);
-				pixel_color += prd.color;
 		} while (prd.depth > 0 && prd.hitted);
-		seed = prd.seed;
+		prd.color *= pow(0.5, max_depth - prd.depth - 1);
+		pixel_color += prd.color;
 	}
 
     params.image[launch_index.y * params.image_width + launch_index.x] = make_float4(pixel_color / params.samples_per_pixel, 1.0f);
@@ -207,9 +220,9 @@ extern "C" __global__ void __closesthit__ch()
 		__uint_as_float(optixGetAttribute_5())
 	);
 
-	float3 target = p + normal + random_in_unit_sphere(prd->seed);
+	float3 target = p + random_in_hemisphere(prd->seed, normal);
 
-	//prd->color *= make_float3(0.1, 0.2, 0.0);
+	//prd->color = normal * 0.5 + 0.5;
 	prd->origin = p;
 	prd->direction = target - p;
 	prd->hitted = true;
@@ -223,4 +236,5 @@ extern "C" __global__ void __miss__ray_color()
 	PRD* prd = getPRD();
     prd->color = lerp(make_float3(1.0), make_float3(0.5, 0.7, 1.0), t);
 	prd->hitted = false;
+	prd->depth--;
 }
