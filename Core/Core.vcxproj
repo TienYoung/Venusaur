@@ -111,6 +111,7 @@
     <ClInclude Include="camera.h" />
     <ClInclude Include="Exception.h" />
     <ClInclude Include="Hello.h" />
+    <ClInclude Include="material.h" />
     <ClInclude Include="Preprocessor.h" />
     <ClInclude Include="random.cuh">
       <FileType>Document</FileType>

@@ -20,6 +20,11 @@ static void KeyCallback(GLFWwindow* window, int32_t key, int32_t /*scancode*/, i
 	}
 }
 
+static void ResizeCallback(GLFWwindow* window, int width, int height)
+{
+	glViewport(0, 0, width, height);
+}
+
 void message_callback(GLenum source, GLenum type, GLuint id, GLenum severity, GLsizei length, GLchar const* message, void const* user_param)
 {
 	// ignore non-significant error/warning codes
@@ -115,6 +120,8 @@ int main(int argc, char* argv[])
 		return -1;
 	}
 
+	glfwSetWindowAspectRatio(window, 16, 9);
+	glfwSetFramebufferSizeCallback(window, ResizeCallback);
 	glfwSetKeyCallback(window, KeyCallback);
 
 	glfwMakeContextCurrent(window);
@@ -192,7 +199,7 @@ int main(int argc, char* argv[])
 	while (!glfwWindowShouldClose(window))
 	{
 		(glBindFramebuffer(GL_FRAMEBUFFER, 0));
-		(glViewport(0, 0, image_width, image_height));
+		//(glViewport(0, 0, image_width, image_height));
 
 		const GLfloat clearColor[] = { 0.3f, 0.2f, 0.6f, 1.0f };
 		const GLfloat* clearDepth = 0;
