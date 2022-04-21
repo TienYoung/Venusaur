@@ -105,6 +105,7 @@
       <CompileOut Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">$(OutputPath)%(Filename).ptx</CompileOut>
       <NvccCompilation Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">ptx</NvccCompilation>
       <TargetMachinePlatform Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">64</TargetMachinePlatform>
+      <FastMath Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</FastMath>
     </CudaCompile>
   </ItemGroup>
   <ItemGroup>

@@ -11,7 +11,7 @@ extern "C"
 
 struct PRD
 {
-	float3 color;
+	float3 attenuation;
 	float3 origin;
 	float3 direction;
 	unsigned int seed;
@@ -118,7 +118,7 @@ extern "C" __global__ void __raygen__rg()
 		get_ray(u, v, origin, direction);
 
 		PRD prd;
-		prd.color = make_float3(0.0f);
+		prd.attenuation = make_float3(1.0f);
 		prd.origin = origin;
 		prd.direction = direction;
 		prd.seed = seed;
@@ -144,8 +144,7 @@ extern "C" __global__ void __raygen__rg()
 				0,                   // missSBTIndex -- See SBT discussion
 				p0, p1);
 		} while (prd.depth > 0 && prd.hitted);
-		prd.color *= pow(0.5, max_depth - prd.depth - 1);
-		pixel_color += prd.color;
+		pixel_color += prd.attenuation;
 	}
 
     params.image[launch_index.y * params.image_width + launch_index.x] = make_float4(pixel_color / params.samples_per_pixel, 1.0f);
@@ -200,12 +199,43 @@ extern "C" __global__ void __intersection__hit_sphere()
 	);
 }
 
+static __forceinline__ __device__ bool scatter(const material& mat, PRD* r_in, const float3& normal, const float3& p)
+{
+	switch (mat.ty)
+	{
+	case material::lambertian:
+		auto scatter_direction = normal + random_unit_vector(r_in->seed);
+		// Catch degenerate scatter direction
+		if (near_zero(scatter_direction))
+			scatter_direction = normal;
+		r_in->origin = p;
+		r_in->direction = scatter_direction;
+		r_in->attenuation *= mat.albedo;
+		return true;
+
+	case material::metal:
+		float3 reflected = reflect(normalize(r_in->direction), normal);
+		r_in->origin = p;
+		r_in->direction = reflected;
+		r_in->hitted = (dot(r_in->direction, normal) > 0);
+		if (r_in->hitted)
+		{
+			r_in->attenuation *= mat.albedo;
+			return true;
+		}
+		r_in->attenuation = make_float3(0);
+		return false;
+	default:
+		return false;
+	}
+}
+
 extern "C" __global__ void __closesthit__ch()
 {
 	PRD* prd = getPRD();
 	if (--prd->depth <= 0)
 	{
-		prd->color = make_float3(0);
+		prd->attenuation = make_float3(0);
 		return;
 	}
 
@@ -222,10 +252,9 @@ extern "C" __global__ void __closesthit__ch()
 
 	float3 target = p + random_in_hemisphere(prd->seed, normal);
 
-	//prd->color = normal * 0.5 + 0.5;
-	prd->origin = p;
-	prd->direction = target - p;
-	prd->hitted = true;
+
+	SphereHitGroupData* rtData = reinterpret_cast<SphereHitGroupData*>(optixGetSbtDataPointer());
+	scatter(rtData->mat, prd, normal, p);
 }
 
 extern "C" __global__ void __miss__ray_color()
@@ -234,7 +263,7 @@ extern "C" __global__ void __miss__ray_color()
     auto t = 0.5 * (unit_direction.y + 1.0);
 
 	PRD* prd = getPRD();
-    prd->color = lerp(make_float3(1.0), make_float3(0.5, 0.7, 1.0), t);
+    prd->attenuation = lerp(make_float3(1.0), make_float3(0.5, 0.7, 1.0), t);
 	prd->hitted = false;
 	prd->depth--;
 }

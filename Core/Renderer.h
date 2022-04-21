@@ -49,8 +49,8 @@ OptixProgramGroup hitgroup_prog_group = nullptr;
 OptixPipeline pipeline = nullptr;
 OptixShaderBindingTable sbt = {};
 
-const int32_t OBJ_COUNT = 2;
-static uint32_t g_obj_indices[OBJ_COUNT] = { 0, 1 };
+const int32_t OBJ_COUNT = 4;
+static uint32_t g_obj_indices[OBJ_COUNT] = { 0, 1, 2, 3 };
 
 float4* device_pixels = nullptr;
 std::vector<float4> host_pixels;
@@ -93,6 +93,8 @@ void Init()
 		// AABB build input
 		OptixAabb   aabbs[OBJ_COUNT] = {
 			{-1.5f, -1.5f, -1.5f, 1.5f, 1.5f, 1.5f},
+			{ -100.5f, -100.5f, -100.5f, 100.5f, 100.5f, 100.5f },
+			{ -100.5f, -100.5f, -100.5f, 100.5f, 100.5f, 100.5f },
 			{ -100.5f, -100.5f, -100.5f, 100.5f, 100.5f, 100.5f } 
 		};
 		CUdeviceptr d_aabb_buffer;
@@ -118,9 +120,9 @@ void Init()
 
 		aabb_input.type = OPTIX_BUILD_INPUT_TYPE_CUSTOM_PRIMITIVES;
 		aabb_input.customPrimitiveArray.aabbBuffers = &d_aabb_buffer;
-		aabb_input.customPrimitiveArray.numPrimitives = 2;
+		aabb_input.customPrimitiveArray.numPrimitives = OBJ_COUNT;
 
-		uint32_t aabb_input_flags[2] = { OPTIX_GEOMETRY_FLAG_NONE };
+		uint32_t aabb_input_flags[OBJ_COUNT] = { OPTIX_GEOMETRY_FLAG_NONE };
 		aabb_input.customPrimitiveArray.flags = aabb_input_flags;
 		aabb_input.customPrimitiveArray.numSbtRecords = OBJ_COUNT;
 		aabb_input.customPrimitiveArray.sbtIndexOffsetBuffer = d_obj_indices;
@@ -351,10 +353,17 @@ void Init()
 		size_t      hitgroup_record_size = sizeof(HitGroupSbtRecord);
 		CUDA_CHECK(cudaMalloc(reinterpret_cast<void**>(&hitgroup_records), hitgroup_record_size * OBJ_COUNT));
 		HitGroupSbtRecord hg_sbts[OBJ_COUNT];
-		hg_sbts[0].data.center = { 0.0f, 0.0f, -1.0f };
-		hg_sbts[0].data.radius = 0.5f;
-		hg_sbts[1].data.center = { 0.0f, -100.5f, -1.0f };
-		hg_sbts[1].data.radius = 100;
+		
+		auto material_ground = material{ material::lambertian, make_float3(0.8, 0.8, 0.0) };
+		auto material_center = material{ material::lambertian, make_float3(0.7, 0.3, 0.3) };
+		auto material_left   = material{ material::metal, make_float3(0.8, 0.8, 0.8) };
+		auto material_right   = material{ material::metal, make_float3(0.8, 0.6, 0.2) };
+
+		hg_sbts[0].data = { make_float3(0.0f, -100.5f, -1.0f), 100, material_ground };
+		hg_sbts[1].data = { make_float3(0.0f, 0.0f, -1.0f), 0.5, material_center };
+		hg_sbts[2].data = { make_float3(-1.0f, 0.0f, -1.0f), 0.5, material_left };
+		hg_sbts[3].data = { make_float3(1.0f, 0.0f, -1.0f), 0.5, material_right };
+		
 		for (int i = 0; i < OBJ_COUNT; ++i)
 		{
 			OPTIX_CHECK(optixSbtRecordPackHeader(hitgroup_prog_group, &hg_sbts[i]));

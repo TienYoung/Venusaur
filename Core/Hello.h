@@ -2,6 +2,8 @@
 
 #include "vec_math.h"
 
+#include "material.h"
+
 struct Params
 {
 	float4* image;
@@ -28,4 +30,5 @@ struct SphereHitGroupData
 {
 	float3 center;
 	float radius;
+	material mat;
 };
