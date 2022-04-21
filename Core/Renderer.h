@@ -45,7 +45,8 @@ OptixModule module = nullptr;
 OptixPipelineCompileOptions pipeline_compile_options = {};
 OptixProgramGroup raygen_prog_group = nullptr;
 OptixProgramGroup miss_prog_group = nullptr;
-OptixProgramGroup hitgroup_prog_group = nullptr;
+OptixProgramGroup hitgroup_prog_group_lambertian = nullptr;
+OptixProgramGroup hitgroup_prog_group_metal = nullptr;
 OptixPipeline pipeline = nullptr;
 OptixShaderBindingTable sbt = {};
 
@@ -258,23 +259,42 @@ void Init()
 			&miss_prog_group
 		));
 
-		OptixProgramGroupDesc hitgroup_prog_group_desc = {};
-		hitgroup_prog_group_desc.kind = OPTIX_PROGRAM_GROUP_KIND_HITGROUP;
-		hitgroup_prog_group_desc.hitgroup.moduleCH = module;
-		hitgroup_prog_group_desc.hitgroup.entryFunctionNameCH = "__closesthit__ch";
-		hitgroup_prog_group_desc.hitgroup.moduleAH = nullptr;
-		hitgroup_prog_group_desc.hitgroup.entryFunctionNameAH = nullptr;
-		hitgroup_prog_group_desc.hitgroup.moduleIS = module;
-		hitgroup_prog_group_desc.hitgroup.entryFunctionNameIS = "__intersection__hit_sphere";
+		OptixProgramGroupDesc hitgroup_prog_group_lambertian_desc = {};
+		hitgroup_prog_group_lambertian_desc.kind = OPTIX_PROGRAM_GROUP_KIND_HITGROUP;
+		hitgroup_prog_group_lambertian_desc.hitgroup.moduleCH = module;
+		hitgroup_prog_group_lambertian_desc.hitgroup.entryFunctionNameCH = "__closesthit__lambertian";
+		hitgroup_prog_group_lambertian_desc.hitgroup.moduleAH = nullptr;
+		hitgroup_prog_group_lambertian_desc.hitgroup.entryFunctionNameAH = nullptr;
+		hitgroup_prog_group_lambertian_desc.hitgroup.moduleIS = module;
+		hitgroup_prog_group_lambertian_desc.hitgroup.entryFunctionNameIS = "__intersection__hit_sphere";
 		sizeof_log = sizeof(log);
 		OPTIX_CHECK_LOG(optixProgramGroupCreate(
 			context,
-			&hitgroup_prog_group_desc,
+			&hitgroup_prog_group_lambertian_desc,
 			1,   // num program groups
 			&program_group_options,
 			log,
 			&sizeof_log,
-			&hitgroup_prog_group
+			&hitgroup_prog_group_lambertian
+		));
+
+		OptixProgramGroupDesc hitgroup_prog_group_metal_desc = {};
+		hitgroup_prog_group_metal_desc.kind = OPTIX_PROGRAM_GROUP_KIND_HITGROUP;
+		hitgroup_prog_group_metal_desc.hitgroup.moduleCH = module;
+		hitgroup_prog_group_metal_desc.hitgroup.entryFunctionNameCH = "__closesthit__metal";
+		hitgroup_prog_group_metal_desc.hitgroup.moduleAH = nullptr;
+		hitgroup_prog_group_metal_desc.hitgroup.entryFunctionNameAH = nullptr;
+		hitgroup_prog_group_metal_desc.hitgroup.moduleIS = module;
+		hitgroup_prog_group_metal_desc.hitgroup.entryFunctionNameIS = "__intersection__hit_sphere";
+		sizeof_log = sizeof(log);
+		OPTIX_CHECK_LOG(optixProgramGroupCreate(
+			context,
+			&hitgroup_prog_group_metal_desc,
+			1,   // num program groups
+			&program_group_options,
+			log,
+			&sizeof_log,
+			&hitgroup_prog_group_metal
 		));
 	}
 
@@ -282,8 +302,8 @@ void Init()
 	// Link pipeline
 	//
 	{
-		const uint32_t    max_trace_depth = 1;
-		OptixProgramGroup program_groups[] = { raygen_prog_group, miss_prog_group, hitgroup_prog_group };
+		const uint32_t    max_trace_depth = 31;
+		OptixProgramGroup program_groups[] = { raygen_prog_group, miss_prog_group, hitgroup_prog_group_lambertian, hitgroup_prog_group_metal };
 
 		OptixPipelineLinkOptions pipeline_link_options = {};
 		pipeline_link_options.maxTraceDepth = max_trace_depth;
@@ -354,20 +374,20 @@ void Init()
 		CUDA_CHECK(cudaMalloc(reinterpret_cast<void**>(&hitgroup_records), hitgroup_record_size * OBJ_COUNT));
 		HitGroupSbtRecord hg_sbts[OBJ_COUNT];
 		
-		auto material_ground = material{ material::lambertian, make_float3(0.8, 0.8, 0.0) };
-		auto material_center = material{ material::lambertian, make_float3(0.7, 0.3, 0.3) };
-		auto material_left   = material{ material::metal, make_float3(0.8, 0.8, 0.8) };
-		auto material_right   = material{ material::metal, make_float3(0.8, 0.6, 0.2) };
+		auto material_ground = material{ make_float3(0.8f, 0.8f, 0.0f) };
+		auto material_center = material{ make_float3(0.7f, 0.3f, 0.3f) };
+		auto material_left   = material{ make_float3(0.8f, 0.8f, 0.8f), 0.3f };
+		auto material_right  = material{ make_float3(0.8f, 0.6f, 0.2f), 1.0f };
 
 		hg_sbts[0].data = { make_float3(0.0f, -100.5f, -1.0f), 100, material_ground };
+		OPTIX_CHECK(optixSbtRecordPackHeader(hitgroup_prog_group_lambertian, &hg_sbts[0]));
 		hg_sbts[1].data = { make_float3(0.0f, 0.0f, -1.0f), 0.5, material_center };
+		OPTIX_CHECK(optixSbtRecordPackHeader(hitgroup_prog_group_lambertian, &hg_sbts[1]));
 		hg_sbts[2].data = { make_float3(-1.0f, 0.0f, -1.0f), 0.5, material_left };
+		OPTIX_CHECK(optixSbtRecordPackHeader(hitgroup_prog_group_metal, &hg_sbts[2]));
 		hg_sbts[3].data = { make_float3(1.0f, 0.0f, -1.0f), 0.5, material_right };
+		OPTIX_CHECK(optixSbtRecordPackHeader(hitgroup_prog_group_metal, &hg_sbts[3]));
 		
-		for (int i = 0; i < OBJ_COUNT; ++i)
-		{
-			OPTIX_CHECK(optixSbtRecordPackHeader(hitgroup_prog_group, &hg_sbts[i]));
-		}
 
 		CUDA_CHECK(cudaMemcpy(
 			reinterpret_cast<void*>(hitgroup_records),
@@ -446,7 +466,8 @@ void Cleanup()
 	OPTIX_CHECK(optixPipelineDestroy(pipeline));
 	OPTIX_CHECK(optixProgramGroupDestroy(raygen_prog_group));
 	OPTIX_CHECK(optixProgramGroupDestroy(miss_prog_group));
-	OPTIX_CHECK(optixProgramGroupDestroy(hitgroup_prog_group));
+	OPTIX_CHECK(optixProgramGroupDestroy(hitgroup_prog_group_lambertian));
+	OPTIX_CHECK(optixProgramGroupDestroy(hitgroup_prog_group_metal));
 	OPTIX_CHECK(optixModuleDestroy(module));
 
 	OPTIX_CHECK(optixDeviceContextDestroy(context));

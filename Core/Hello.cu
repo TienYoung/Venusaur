@@ -15,7 +15,7 @@ struct PRD
 	float3 origin;
 	float3 direction;
 	unsigned int seed;
-	int hitted;
+	int done;
 	int depth;
 };
 
@@ -110,7 +110,7 @@ extern "C" __global__ void __raygen__rg()
 	unsigned int seed = tea<4>(image_index, 0);
 	for (int s = 0; s < params.samples_per_pixel; ++s)
 	{
-		const int max_depth = 50;
+		const int max_depth = 32;
 		auto u = double(launch_index.x + random_float(seed)) / (params.image_width - 1);
 		auto v = double(launch_index.y + random_float(seed)) / (params.image_height - 1);
 		float3 origin;
@@ -122,28 +122,25 @@ extern "C" __global__ void __raygen__rg()
 		prd.origin = origin;
 		prd.direction = direction;
 		prd.seed = seed;
-		prd.hitted = false;
-		prd.depth = max_depth;
-		
+		prd.depth = max_depth - 1;
+
 		unsigned int p0, p1;
 		packPointer(&prd, p0, p1);
-		do
-		{
-			// Trace the ray against our scene hierarchy
-			optixTrace(
-				params.handle,
-				prd.origin,
-				prd.direction,
-				0.001f,                // Min intersection distance
-				1e16f,               // Max intersection distance
-				0.0f,                // rayTime -- used for motion blur
-				OptixVisibilityMask(255), // Specify always visible
-				OPTIX_RAY_FLAG_NONE,
-				0,                   // SBT offset   -- See SBT discussion
-				1,                   // SBT stride   -- See SBT discussion
-				0,                   // missSBTIndex -- See SBT discussion
-				p0, p1);
-		} while (prd.depth > 0 && prd.hitted);
+
+		// Trace the ray against our scene hierarchy
+		optixTrace(
+			params.handle,
+			prd.origin,
+			prd.direction,
+			0.001f,                // Min intersection distance
+			1e16f,               // Max intersection distance
+			0.0f,                // rayTime -- used for motion blur
+			OptixVisibilityMask(255), // Specify always visible
+			OPTIX_RAY_FLAG_NONE,
+			0,                   // SBT offset   -- See SBT discussion
+			1,                   // SBT stride   -- See SBT discussion
+			0,                   // missSBTIndex -- See SBT discussion
+			p0, p1);
 		pixel_color += prd.attenuation;
 	}
 
@@ -199,62 +196,105 @@ extern "C" __global__ void __intersection__hit_sphere()
 	);
 }
 
-static __forceinline__ __device__ bool scatter(const material& mat, PRD* r_in, const float3& normal, const float3& p)
+extern "C" __global__ void __closesthit__lambertian()
 {
-	switch (mat.ty)
+	PRD* prd = getPRD();
+	if (prd->depth > 0)
 	{
-	case material::lambertian:
-		auto scatter_direction = normal + random_unit_vector(r_in->seed);
+		float3 p = make_float3(
+			__uint_as_float(optixGetAttribute_0()),
+			__uint_as_float(optixGetAttribute_1()),
+			__uint_as_float(optixGetAttribute_2())
+		);
+		float3 normal = make_float3(
+			__uint_as_float(optixGetAttribute_3()),
+			__uint_as_float(optixGetAttribute_4()),
+			__uint_as_float(optixGetAttribute_5())
+		);
+
+		auto scatter_direction = normal + random_unit_vector(prd->seed);
 		// Catch degenerate scatter direction
 		if (near_zero(scatter_direction))
 			scatter_direction = normal;
-		r_in->origin = p;
-		r_in->direction = scatter_direction;
-		r_in->attenuation *= mat.albedo;
-		return true;
 
-	case material::metal:
-		float3 reflected = reflect(normalize(r_in->direction), normal);
-		r_in->origin = p;
-		r_in->direction = reflected;
-		r_in->hitted = (dot(r_in->direction, normal) > 0);
-		if (r_in->hitted)
-		{
-			r_in->attenuation *= mat.albedo;
-			return true;
-		}
-		r_in->attenuation = make_float3(0);
-		return false;
-	default:
-		return false;
+		prd->origin = p;
+		prd->direction = scatter_direction;
+		prd->depth -= 1;
+
+		unsigned int p0, p1;
+		packPointer(prd, p0, p1);
+		optixTrace(
+			params.handle,
+			prd->origin,
+			prd->direction,
+			0.001f,                // Min intersection distance
+			1e16f,               // Max intersection distance
+			0.0f,                // rayTime -- used for motion blur
+			OptixVisibilityMask(255), // Specify always visible
+			OPTIX_RAY_FLAG_NONE,
+			0,                   // SBT offset   -- See SBT discussion
+			1,                   // SBT stride   -- See SBT discussion
+			0,                   // missSBTIndex -- See SBT discussion
+			p0, p1);
+		SphereHitGroupData* rtData = reinterpret_cast<SphereHitGroupData*>(optixGetSbtDataPointer());
+		prd->attenuation *= rtData->mat.albedo;
+	}
+	else
+	{
+		prd->attenuation = make_float3(0.0, 0.0, 0.0);
 	}
 }
 
-extern "C" __global__ void __closesthit__ch()
+extern "C" __global__ void __closesthit__metal()
 {
 	PRD* prd = getPRD();
-	if (--prd->depth <= 0)
+	if (prd->depth > 0)
 	{
-		prd->attenuation = make_float3(0);
-		return;
+		float3 p = make_float3(
+			__uint_as_float(optixGetAttribute_0()),
+			__uint_as_float(optixGetAttribute_1()),
+			__uint_as_float(optixGetAttribute_2())
+		);
+		float3 normal = make_float3(
+			__uint_as_float(optixGetAttribute_3()),
+			__uint_as_float(optixGetAttribute_4()),
+			__uint_as_float(optixGetAttribute_5())
+		);
+
+		SphereHitGroupData* rtData = reinterpret_cast<SphereHitGroupData*>(optixGetSbtDataPointer());
+		float3 reflected = reflect(normalize(prd->direction), normal);
+		prd->origin = p;
+		prd->direction = reflected + rtData->mat.fuzz * random_in_unit_sphere(prd->seed);
+		if (dot(prd->direction, normal) > 0)
+		{
+			prd->depth -= 1;
+
+			unsigned int p0, p1;
+			packPointer(prd, p0, p1);
+			optixTrace(
+				params.handle,
+				prd->origin,
+				prd->direction,
+				0.001f,                // Min intersection distance
+				1e16f,               // Max intersection distance
+				0.0f,                // rayTime -- used for motion blur
+				OptixVisibilityMask(255), // Specify always visible
+				OPTIX_RAY_FLAG_NONE,
+				0,                   // SBT offset   -- See SBT discussion
+				1,                   // SBT stride   -- See SBT discussion
+				0,                   // missSBTIndex -- See SBT discussion
+				p0, p1);
+			prd->attenuation *= rtData->mat.albedo;
+		}
+		else
+		{
+			prd->attenuation = make_float3(0.0, 0.0, 0.0);
+		}
 	}
-
-	float3 p = make_float3(
-		__uint_as_float(optixGetAttribute_0()),
-		__uint_as_float(optixGetAttribute_1()),
-		__uint_as_float(optixGetAttribute_2())
-	);
-	float3 normal = make_float3(
-		__uint_as_float(optixGetAttribute_3()),
-		__uint_as_float(optixGetAttribute_4()),
-		__uint_as_float(optixGetAttribute_5())
-	);
-
-	float3 target = p + random_in_hemisphere(prd->seed, normal);
-
-
-	SphereHitGroupData* rtData = reinterpret_cast<SphereHitGroupData*>(optixGetSbtDataPointer());
-	scatter(rtData->mat, prd, normal, p);
+	else
+	{
+		prd->attenuation = make_float3(0.0, 0.0, 0.0);
+	}
 }
 
 extern "C" __global__ void __miss__ray_color()
@@ -264,6 +304,5 @@ extern "C" __global__ void __miss__ray_color()
 
 	PRD* prd = getPRD();
     prd->attenuation = lerp(make_float3(1.0), make_float3(0.5, 0.7, 1.0), t);
-	prd->hitted = false;
-	prd->depth--;
+	prd->depth -= 1;
 }

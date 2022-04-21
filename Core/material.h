@@ -2,14 +2,8 @@
 
 struct material
 {
-	enum type
-	{
-		lambertian,
-		metal
-	};
-
-	type ty;
 	float3 albedo;
+	float fuzz;
 };
 
 bool __forceinline__ __device__ near_zero(const float3& e) 
