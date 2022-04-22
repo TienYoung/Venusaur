@@ -54,14 +54,14 @@ static __forceinline__ __device__ float random_float(unsigned int& seed, float m
 	return min + (max - min) * random_float(seed);
 }
 
-//static __forceinline__ __device__ float3 random(unsigned int& seed)
-//{
-//	return make_float3(
-//		random_float(seed),
-//		random_float(seed),
-//		random_float(seed)
-//	);
-//}
+static __forceinline__ __device__ float3 random(unsigned int& seed)
+{
+	return make_float3(
+		random_float(seed),
+		random_float(seed),
+		random_float(seed)
+	);
+}
 
 static __forceinline__ __device__ float3 random(unsigned int& seed, float min, float max)
 {
@@ -74,7 +74,8 @@ static __forceinline__ __device__ float3 random(unsigned int& seed, float min, f
 
 static __forceinline__ __device__ float3 random_in_unit_sphere(unsigned int& seed) 
 {
-	while (true) {
+	while (true)
+	{
 		auto p = random(seed, -1, 1);
 		if (dot(p, p) >= 1) continue;
 		return p;
@@ -86,7 +87,8 @@ static __forceinline__ __device__ float3 random_unit_vector(unsigned int& seed)
 	return normalize(random_in_unit_sphere(seed));
 }
 
-static __forceinline__ __device__ float3 random_in_hemisphere(unsigned int& seed, const float3& normal) {
+static __forceinline__ __device__ float3 random_in_hemisphere(unsigned int& seed, const float3& normal)
+{
 	float3 in_unit_sphere = random_in_unit_sphere(seed);
 	if (dot(in_unit_sphere, normal) > 0.0) // In the same hemisphere as the normal
 		return in_unit_sphere;
@@ -94,11 +96,24 @@ static __forceinline__ __device__ float3 random_in_hemisphere(unsigned int& seed
 		return -in_unit_sphere;
 }
 
-static __forceinline__ __device__ void get_ray(float s, float t, float3& origin, float3& direction)
+static __forceinline__ __device__ float3 random_in_unit_disk(unsigned int& seed)
+{
+	while (true) 
+	{
+		auto p = make_float3(random_float(seed, -1, 1), random_float(seed, -1, 1), 0);
+		if (dot(p, p) >= 1) continue;
+		return p;
+	}
+}
+
+static __forceinline__ __device__ void get_ray(float s, float t, float3& origin, float3& direction, unsigned int& seed)
 {
 	RayGenData* rtData = reinterpret_cast<RayGenData*>(optixGetSbtDataPointer());
-	origin = rtData->origin;
-	direction = rtData->lower_left_corner + s * rtData->horizontal + t * rtData->vertical - rtData->origin;
+	float3 rd = rtData->lens_radius * random_in_unit_disk(seed);
+	float3 offset = rtData->u * rd.x + rtData->v * rd.y;
+
+	origin = rtData->origin + offset;
+	direction = rtData->lower_left_corner + s * rtData->horizontal + t * rtData->vertical - rtData->origin - offset;
 }
 
 extern "C" __global__ void __raygen__rg()
@@ -115,7 +130,7 @@ extern "C" __global__ void __raygen__rg()
 		auto v = double(launch_index.y + random_float(seed)) / (params.image_height - 1);
 		float3 origin;
 		float3 direction;
-		get_ray(u, v, origin, direction);
+		get_ray(u, v, origin, direction, seed);
 
 		PRD prd;
 		prd.attenuation = make_float3(1.0f);

@@ -26,7 +26,7 @@ struct SbtRecord
 };
 
 typedef SbtRecord<RayGenData> RayGenSbtRecord;
-typedef SbtRecord<int>        MissSbtRecord;
+typedef SbtRecord<MissData>        MissSbtRecord;
 typedef SbtRecord<SphereHitGroupData> HitGroupSbtRecord;
 
 #include "camera.h"
@@ -58,13 +58,18 @@ float4* device_pixels = nullptr;
 std::vector<float4> host_pixels;
 
 // Image
+float3 lookfrom{ 3, 3, 2 };
+float3 lookat{ 0, 0, -1 };
+float3 vup{ 0, 1, 0 };
+auto dist_to_focus = length(lookfrom - lookat);
+auto aperture = 2.0f;
 const auto aspect_ratio = 16.0f / 9.0f;
 const int image_width = 400;
 const int image_height = static_cast<int>(image_width / aspect_ratio);
 const int samples_per_pixel = 100;
 void Init()
 {
-	camera cam(make_float3(-2, 2, 1), make_float3(0, 0, -1), make_float3(0, 1, 0), 20.0f, aspect_ratio);
+	camera cam(lookfrom, lookat, vup, 20.0f, aspect_ratio, aperture, dist_to_focus);
 
 	char log[2048]; // For error reporting from OptiX creation functions
 
@@ -381,7 +386,7 @@ void Init()
 		CUdeviceptr miss_record;
 		size_t      miss_record_size = sizeof(MissSbtRecord);
 		CUDA_CHECK(cudaMalloc(reinterpret_cast<void**>(&miss_record), miss_record_size));
-		RayGenSbtRecord ms_sbt;
+		MissSbtRecord ms_sbt;
 		OPTIX_CHECK(optixSbtRecordPackHeader(miss_prog_group, &ms_sbt));
 		CUDA_CHECK(cudaMemcpy(
 			reinterpret_cast<void*>(miss_record),
