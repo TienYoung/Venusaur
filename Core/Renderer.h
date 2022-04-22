@@ -47,11 +47,12 @@ OptixProgramGroup raygen_prog_group = nullptr;
 OptixProgramGroup miss_prog_group = nullptr;
 OptixProgramGroup hitgroup_prog_group_lambertian = nullptr;
 OptixProgramGroup hitgroup_prog_group_metal = nullptr;
+OptixProgramGroup hitgroup_prog_group_dielectric = nullptr;
 OptixPipeline pipeline = nullptr;
 OptixShaderBindingTable sbt = {};
 
-const int32_t OBJ_COUNT = 4;
-static uint32_t g_obj_indices[OBJ_COUNT] = { 0, 1, 2, 3 };
+const int32_t OBJ_COUNT = 5;
+static uint32_t g_obj_indices[OBJ_COUNT] = { 0, 1, 2, 3, 4 };
 
 float4* device_pixels = nullptr;
 std::vector<float4> host_pixels;
@@ -94,6 +95,7 @@ void Init()
 		// AABB build input
 		OptixAabb   aabbs[OBJ_COUNT] = {
 			{-1.5f, -1.5f, -1.5f, 1.5f, 1.5f, 1.5f},
+			{ -100.5f, -100.5f, -100.5f, 100.5f, 100.5f, 100.5f },
 			{ -100.5f, -100.5f, -100.5f, 100.5f, 100.5f, 100.5f },
 			{ -100.5f, -100.5f, -100.5f, 100.5f, 100.5f, 100.5f },
 			{ -100.5f, -100.5f, -100.5f, 100.5f, 100.5f, 100.5f } 
@@ -195,7 +197,7 @@ void Init()
 		pipeline_compile_options.usesMotionBlur = false;
 		pipeline_compile_options.traversableGraphFlags = OPTIX_TRAVERSABLE_GRAPH_FLAG_ALLOW_SINGLE_GAS;
 		pipeline_compile_options.numPayloadValues = 2;
-		pipeline_compile_options.numAttributeValues = 6;
+		pipeline_compile_options.numAttributeValues = 7;
 		pipeline_compile_options.exceptionFlags = OPTIX_EXCEPTION_FLAG_NONE;  // TODO: should be OPTIX_EXCEPTION_FLAG_STACK_OVERFLOW;
 		pipeline_compile_options.pipelineLaunchParamsVariableName = "params";
 
@@ -296,6 +298,25 @@ void Init()
 			&sizeof_log,
 			&hitgroup_prog_group_metal
 		));
+
+		OptixProgramGroupDesc hitgroup_prog_group_dielectric_desc = {};
+		hitgroup_prog_group_dielectric_desc.kind = OPTIX_PROGRAM_GROUP_KIND_HITGROUP;
+		hitgroup_prog_group_dielectric_desc.hitgroup.moduleCH = module;
+		hitgroup_prog_group_dielectric_desc.hitgroup.entryFunctionNameCH = "__closesthit__dielectric";
+		hitgroup_prog_group_dielectric_desc.hitgroup.moduleAH = nullptr;
+		hitgroup_prog_group_dielectric_desc.hitgroup.entryFunctionNameAH = nullptr;
+		hitgroup_prog_group_dielectric_desc.hitgroup.moduleIS = module;
+		hitgroup_prog_group_dielectric_desc.hitgroup.entryFunctionNameIS = "__intersection__hit_sphere";
+		sizeof_log = sizeof(log);
+		OPTIX_CHECK_LOG(optixProgramGroupCreate(
+			context,
+			&hitgroup_prog_group_dielectric_desc,
+			1,   // num program groups
+			&program_group_options,
+			log,
+			&sizeof_log,
+			&hitgroup_prog_group_dielectric
+		));
 	}
 
 	//
@@ -303,7 +324,7 @@ void Init()
 	//
 	{
 		const uint32_t    max_trace_depth = 31;
-		OptixProgramGroup program_groups[] = { raygen_prog_group, miss_prog_group, hitgroup_prog_group_lambertian, hitgroup_prog_group_metal };
+		OptixProgramGroup program_groups[] = { raygen_prog_group, miss_prog_group, hitgroup_prog_group_lambertian, hitgroup_prog_group_metal, hitgroup_prog_group_dielectric };
 
 		OptixPipelineLinkOptions pipeline_link_options = {};
 		pipeline_link_options.maxTraceDepth = max_trace_depth;
@@ -375,18 +396,20 @@ void Init()
 		HitGroupSbtRecord hg_sbts[OBJ_COUNT];
 		
 		auto material_ground = material{ make_float3(0.8f, 0.8f, 0.0f) };
-		auto material_center = material{ make_float3(0.7f, 0.3f, 0.3f) };
-		auto material_left   = material{ make_float3(0.8f, 0.8f, 0.8f), 0.3f };
-		auto material_right  = material{ make_float3(0.8f, 0.6f, 0.2f), 1.0f };
+		auto material_center = material{ make_float3(0.1f, 0.2f, 0.5f) };
+		auto material_left   = material{ 1.5f };
+		auto material_right  = material{ make_float3(0.8f, 0.6f, 0.2f), 0.0f };
 
-		hg_sbts[0].data = { make_float3(0.0f, -100.5f, -1.0f), 100, material_ground };
+		hg_sbts[0].data = { make_float3(0.0f, -100.5f, -1.0f), 100.0f, material_ground };
 		OPTIX_CHECK(optixSbtRecordPackHeader(hitgroup_prog_group_lambertian, &hg_sbts[0]));
-		hg_sbts[1].data = { make_float3(0.0f, 0.0f, -1.0f), 0.5, material_center };
+		hg_sbts[1].data = { make_float3(0.0f, 0.0f, -1.0f),      0.5f, material_center };
 		OPTIX_CHECK(optixSbtRecordPackHeader(hitgroup_prog_group_lambertian, &hg_sbts[1]));
-		hg_sbts[2].data = { make_float3(-1.0f, 0.0f, -1.0f), 0.5, material_left };
-		OPTIX_CHECK(optixSbtRecordPackHeader(hitgroup_prog_group_metal, &hg_sbts[2]));
-		hg_sbts[3].data = { make_float3(1.0f, 0.0f, -1.0f), 0.5, material_right };
-		OPTIX_CHECK(optixSbtRecordPackHeader(hitgroup_prog_group_metal, &hg_sbts[3]));
+		hg_sbts[2].data = { make_float3(-1.0f, 0.0f, -1.0f),     0.5f, material_left };
+		OPTIX_CHECK(optixSbtRecordPackHeader(hitgroup_prog_group_dielectric, &hg_sbts[2]));
+		hg_sbts[3].data = { make_float3(-1.0f, 0.0f, -1.0f),    -0.4f, material_left };
+		OPTIX_CHECK(optixSbtRecordPackHeader(hitgroup_prog_group_dielectric, &hg_sbts[3]));
+		hg_sbts[4].data = { make_float3(1.0f, 0.0f, -1.0f),      0.5f, material_right };
+		OPTIX_CHECK(optixSbtRecordPackHeader(hitgroup_prog_group_metal,      &hg_sbts[4]));
 		
 
 		CUDA_CHECK(cudaMemcpy(
@@ -468,6 +491,7 @@ void Cleanup()
 	OPTIX_CHECK(optixProgramGroupDestroy(miss_prog_group));
 	OPTIX_CHECK(optixProgramGroupDestroy(hitgroup_prog_group_lambertian));
 	OPTIX_CHECK(optixProgramGroupDestroy(hitgroup_prog_group_metal));
+	OPTIX_CHECK(optixProgramGroupDestroy(hitgroup_prog_group_dielectric));
 	OPTIX_CHECK(optixModuleDestroy(module));
 
 	OPTIX_CHECK(optixDeviceContextDestroy(context));

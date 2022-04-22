@@ -151,7 +151,11 @@ static __forceinline__ __device__ bool set_face_normal(const float3& direction, 
 {
 	bool front_face = dot(direction, outward_normal) < 0;
 	outward_normal = front_face ? outward_normal : -outward_normal;
+	return front_face;
 }
+
+#define OPTIX_HIT_KIND_CUSTOM_SPHERE_FRONT_FACE 0x00
+#define OPTIX_HIT_KIND_CUSTOM_SPHERE_BACK_FACE 0x01
 
 extern "C" __global__ void __intersection__hit_sphere()
 {
@@ -186,9 +190,9 @@ extern "C" __global__ void __intersection__hit_sphere()
 
 	optixReportIntersection(
 		t,
-		front_face ? OPTIX_HIT_KIND_TRIANGLE_FRONT_FACE : OPTIX_HIT_KIND_TRIANGLE_BACK_FACE,
-		__float_as_uint(p.x), 
-		__float_as_uint(p.y), 
+		front_face ? OPTIX_HIT_KIND_CUSTOM_SPHERE_FRONT_FACE : OPTIX_HIT_KIND_CUSTOM_SPHERE_BACK_FACE,
+		__float_as_uint(p.x),
+		__float_as_uint(p.y),
 		__float_as_uint(p.z),
 		__float_as_uint(normal.x),
 		__float_as_uint(normal.y),
@@ -290,6 +294,75 @@ extern "C" __global__ void __closesthit__metal()
 		{
 			prd->attenuation = make_float3(0.0, 0.0, 0.0);
 		}
+	}
+	else
+	{
+		prd->attenuation = make_float3(0.0, 0.0, 0.0);
+	}
+}
+
+static __forceinline__ __device__ float reflectance(float cosine, float ref_idx)
+{
+	// Use Schlick's approximation for reflectance.
+	auto r0 = (1 - ref_idx) / (1 + ref_idx);
+	r0 = r0 * r0;
+	return r0 + (1 - r0) * __powf((1 - cosine), 5);
+}
+
+extern "C" __global__ void __closesthit__dielectric()
+{
+	PRD* prd = getPRD();
+	if (prd->depth > 0)
+	{
+		float3 p = make_float3(
+			__uint_as_float(optixGetAttribute_0()),
+			__uint_as_float(optixGetAttribute_1()),
+			__uint_as_float(optixGetAttribute_2())
+		);
+		float3 normal = make_float3(
+			__uint_as_float(optixGetAttribute_3()),
+			__uint_as_float(optixGetAttribute_4()),
+			__uint_as_float(optixGetAttribute_5())
+		);
+
+		SphereHitGroupData* rtData = reinterpret_cast<SphereHitGroupData*>(optixGetSbtDataPointer());
+		float refraction_ratio = rtData->mat.ir;
+		if (optixGetHitKind() == OPTIX_HIT_KIND_CUSTOM_SPHERE_FRONT_FACE)
+		{
+			refraction_ratio = (1.0f / rtData->mat.ir);
+		}
+
+		float3 unit_direction = normalize(prd->direction);
+		double cos_theta = fminf(dot(-unit_direction, normal), 1.0);
+		double sin_theta = sqrt(1.0 - cos_theta * cos_theta);
+
+		bool cannot_refract = refraction_ratio * sin_theta > 1.0;
+		float3 direction;
+
+		if (cannot_refract || reflectance(cos_theta, refraction_ratio) > random_float(prd->seed))
+			direction = reflect(unit_direction, normal);
+		else
+			direction = refract(unit_direction, normal, refraction_ratio);
+
+		prd->origin = p;
+		prd->direction = direction;
+		prd->depth -= 1;
+
+		unsigned int p0, p1;
+		packPointer(prd, p0, p1);
+		optixTrace(
+			params.handle,
+			prd->origin,
+			prd->direction,
+			0.001f,                // Min intersection distance
+			1e16f,               // Max intersection distance
+			0.0f,                // rayTime -- used for motion blur
+			OptixVisibilityMask(255), // Specify always visible
+			OPTIX_RAY_FLAG_NONE,
+			0,                   // SBT offset   -- See SBT discussion
+			1,                   // SBT stride   -- See SBT discussion
+			0,                   // missSBTIndex -- See SBT discussion
+			p0, p1);
 	}
 	else
 	{

@@ -560,6 +560,15 @@ SUTIL_INLINE SUTIL_HOSTDEVICE float3 reflect(const float3& i, const float3& n)
   return i - 2.0f * n * dot(n,i);
 }
 
+/** refract */
+SUTIL_INLINE SUTIL_HOSTDEVICE float3 refract(const float3& uv, const float3& n, float etai_over_etat)
+{
+	auto cos_theta = fminf(dot(-uv, n), 1.0f);
+    float3 r_out_perp = etai_over_etat * (uv + cos_theta * n);
+    float3 r_out_parallel = -sqrtf(fabsf(1.0f - dot(r_out_perp, r_out_perp))) * n;
+	return r_out_perp + r_out_parallel;
+}
+
 /** Faceforward
 * Returns N if dot(i, nref) > 0; else -N;
 * Typical usage is N = faceforward(N, -ray.dir, N);

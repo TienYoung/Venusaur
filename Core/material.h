@@ -2,8 +2,15 @@
 
 struct material
 {
-	float3 albedo;
-	float fuzz;
+	union
+	{
+		struct
+		{
+			float3 albedo;
+			float fuzz;
+		};
+		float ir;
+	};
 };
 
 bool __forceinline__ __device__ near_zero(const float3& e) 
