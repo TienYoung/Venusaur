@@ -1,19 +1,25 @@
 #pragma once
 
+#include "rtweekend.h"
+
 class camera
 {
 public:
-	camera()
+	camera(float3 lookfrom, float3 lookat, float3 vup, float vfov, float aspect_ratio)
 	{
-		auto aspect_ratio = 16.0f / 9.0f;
-		auto viewport_height = 2.0f;
+		auto theta = degrees_to_radians(vfov);
+		auto h = tanf(theta / 2);
+		auto viewport_height = 2.0f * h;
 		auto viewport_width = aspect_ratio * viewport_height;
-		auto focal_length = 1.0f;
+		
+		auto w = normalize(lookfrom - lookat);
+		auto u = normalize(cross(vup, w));
+		auto v = cross(w, u);
 
-		origin = make_float3(0, 0, 0);
-		horizontal = make_float3(viewport_width, 0, 0);
-		vertical = make_float3(0, viewport_height, 0);
-		lower_left_corner = origin - horizontal / 2 - vertical / 2 - make_float3(0, 0, focal_length);
+		origin = lookfrom;
+		horizontal = viewport_width * u;
+		vertical = viewport_height * v;
+		lower_left_corner = origin - horizontal / 2 - vertical / 2 - w;
 	}
 
 	void set_sbt(RayGenSbtRecord& rg_sbt)

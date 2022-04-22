@@ -118,6 +118,7 @@
       <FileType>Document</FileType>
     </ClInclude>
     <ClInclude Include="Renderer.h" />
+    <ClInclude Include="rtweekend.h" />
     <ClInclude Include="vec_math.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

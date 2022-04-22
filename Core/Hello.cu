@@ -94,11 +94,11 @@ static __forceinline__ __device__ float3 random_in_hemisphere(unsigned int& seed
 		return -in_unit_sphere;
 }
 
-static __forceinline__ __device__ void get_ray(float u, float v, float3& origin, float3& direction)
+static __forceinline__ __device__ void get_ray(float s, float t, float3& origin, float3& direction)
 {
 	RayGenData* rtData = reinterpret_cast<RayGenData*>(optixGetSbtDataPointer());
 	origin = rtData->origin;
-	direction = rtData->lower_left_corner + u * rtData->horizontal + v * rtData->vertical - rtData->origin;
+	direction = rtData->lower_left_corner + s * rtData->horizontal + t * rtData->vertical - rtData->origin;
 }
 
 extern "C" __global__ void __raygen__rg()

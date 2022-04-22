@@ -58,13 +58,13 @@ float4* device_pixels = nullptr;
 std::vector<float4> host_pixels;
 
 // Image
-const auto aspect_ratio = 16.0 / 9.0;
+const auto aspect_ratio = 16.0f / 9.0f;
 const int image_width = 400;
 const int image_height = static_cast<int>(image_width / aspect_ratio);
 const int samples_per_pixel = 100;
 void Init()
 {
-	camera cam;
+	camera cam(make_float3(-2, 2, 1), make_float3(0, 0, -1), make_float3(0, 1, 0), 20.0f, aspect_ratio);
 
 	char log[2048]; // For error reporting from OptiX creation functions
 
@@ -406,7 +406,7 @@ void Init()
 		OPTIX_CHECK(optixSbtRecordPackHeader(hitgroup_prog_group_lambertian, &hg_sbts[1]));
 		hg_sbts[2].data = { make_float3(-1.0f, 0.0f, -1.0f),     0.5f, material_left };
 		OPTIX_CHECK(optixSbtRecordPackHeader(hitgroup_prog_group_dielectric, &hg_sbts[2]));
-		hg_sbts[3].data = { make_float3(-1.0f, 0.0f, -1.0f),    -0.4f, material_left };
+		hg_sbts[3].data = { make_float3(-1.0f, 0.0f, -1.0f),   -0.45f, material_left };
 		OPTIX_CHECK(optixSbtRecordPackHeader(hitgroup_prog_group_dielectric, &hg_sbts[3]));
 		hg_sbts[4].data = { make_float3(1.0f, 0.0f, -1.0f),      0.5f, material_right };
 		OPTIX_CHECK(optixSbtRecordPackHeader(hitgroup_prog_group_metal,      &hg_sbts[4]));
