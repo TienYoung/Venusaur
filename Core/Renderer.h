@@ -17,6 +17,7 @@
 #include <gl/gl3w.h>
 
 #include "Hello.h"
+#include "sphere.h"
 
 template <typename T>
 struct SbtRecord
