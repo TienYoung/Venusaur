@@ -125,7 +125,7 @@ extern "C" __global__ void __raygen__rg()
 	unsigned int seed = tea<4>(image_index, 0);
 	for (int s = 0; s < params.samples_per_pixel; ++s)
 	{
-		const int max_depth = 32;
+		const int max_depth = 50;
 		auto u = double(launch_index.x + random_float(seed)) / (params.image_width - 1);
 		auto v = double(launch_index.y + random_float(seed)) / (params.image_height - 1);
 		float3 origin;

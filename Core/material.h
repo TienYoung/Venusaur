@@ -13,20 +13,19 @@ struct material
 	};
 };
 
-static __host__ void genLambertianMat(material& mat, const float3& albedo)
+static __host__ material makeLambertianMat(const float3& albedo)
 {
-	mat.albedo = albedo;
+	return material{ albedo };
 }
 
-static __host__ void genMetalMat(material& mat, const float3& albedo, float fuzz)
+static __host__ material makeMetalMat(const float3& albedo, float fuzz)
 {
-	mat.albedo = albedo;
-	mat.fuzz;
+	return material{ albedo, fuzz };
 }
 
-static __host__ void genDieletricMat(material& mat, float ir)
+static __host__ material makeDielectricMat(float ir)
 {
-	mat.ir = ir;
+	return material{ ir };
 }
 
 bool __forceinline__ __device__ near_zero(const float3& e) 

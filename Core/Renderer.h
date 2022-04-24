@@ -11,13 +11,13 @@
 
 #include <fstream>
 #include <vector>
+#include <unordered_map>
 
 #include <direct.h>
 
 #include <gl/gl3w.h>
 
 #include "Hello.h"
-#include "sphere.h"
 
 template <typename T>
 struct SbtRecord
@@ -30,6 +30,7 @@ typedef SbtRecord<RayGenData> RayGenSbtRecord;
 typedef SbtRecord<MissData>        MissSbtRecord;
 typedef SbtRecord<SphereHitGroupData> HitGroupSbtRecord;
 
+#include "hitable_list.h"
 #include "camera.h"
 
 
@@ -46,14 +47,14 @@ OptixModule module = nullptr;
 OptixPipelineCompileOptions pipeline_compile_options = {};
 OptixProgramGroup raygen_prog_group = nullptr;
 OptixProgramGroup miss_prog_group = nullptr;
-OptixProgramGroup hitgroup_prog_group_lambertian = nullptr;
-OptixProgramGroup hitgroup_prog_group_metal = nullptr;
-OptixProgramGroup hitgroup_prog_group_dielectric = nullptr;
+std::unordered_map<const char*, OptixProgramGroup> hitgroup_prog_map = { 
+	{"lambertian", nullptr},
+	{"metal", nullptr},
+	{"dielectric", nullptr}
+};
+
 OptixPipeline pipeline = nullptr;
 OptixShaderBindingTable sbt = {};
-
-const int32_t OBJ_COUNT = 5;
-static uint32_t g_obj_indices[OBJ_COUNT] = { 0, 1, 2, 3, 4 };
 
 float4* device_pixels = nullptr;
 std::vector<float4> host_pixels;
@@ -73,6 +74,19 @@ void Init()
 	camera cam(lookfrom, lookat, vup, 20.0f, aspect_ratio, aperture, dist_to_focus);
 
 	char log[2048]; // For error reporting from OptiX creation functions
+
+	hittable_list world;
+	
+	auto material_ground = makeLambertianMat(make_float3(0.8f, 0.8f, 0.0f));
+	auto material_center = makeLambertianMat(make_float3(0.1f, 0.2f, 0.5f));
+	auto material_left = makeDielectricMat(1.5f);
+	auto material_right = makeMetalMat(make_float3(0.8f, 0.6f, 0.2f), 0.0f);
+
+	world.add(makeSphere(make_float3( 0.0f, -100.5f, -1.0f), 100.0f, material_ground), "lambertian");
+	world.add(makeSphere(make_float3( 0.0f,    0.0f, -1.0f),   0.5f, material_center), "lambertian");
+	world.add(makeSphere(make_float3(-1.0f,    0.0f, -1.0f),   0.5f, material_left),   "dielectric");
+	world.add(makeSphere(make_float3(-1.0f,    0.0f, -1.0f), -0.45f, material_left),   "dielectric");
+	world.add(makeSphere(make_float3( 1.0f,    0.0f, -1.0f),   0.5f, material_right),  "metal");
 
 	//
 	// Initialize CUDA and create OptiX context
@@ -99,28 +113,24 @@ void Init()
 		accel_options.operation = OPTIX_BUILD_OPERATION_BUILD;
 
 		// AABB build input
-		OptixAabb   aabbs[OBJ_COUNT] = {
-			{-1.5f, -1.5f, -1.5f, 1.5f, 1.5f, 1.5f},
-			{ -100.5f, -100.5f, -100.5f, 100.5f, 100.5f, 100.5f },
-			{ -100.5f, -100.5f, -100.5f, 100.5f, 100.5f, 100.5f },
-			{ -100.5f, -100.5f, -100.5f, 100.5f, 100.5f, 100.5f },
-			{ -100.5f, -100.5f, -100.5f, 100.5f, 100.5f, 100.5f } 
-		};
+		const OptixAabb* aabbs;
+		const size_t aabbs_size_in_bytes = world.aabb_buffer(aabbs);
 		CUdeviceptr d_aabb_buffer;
-		CUDA_CHECK(cudaMalloc(reinterpret_cast<void**>(&d_aabb_buffer), OBJ_COUNT * sizeof(OptixAabb)));
+		CUDA_CHECK(cudaMalloc(reinterpret_cast<void**>(&d_aabb_buffer), aabbs_size_in_bytes));
 		CUDA_CHECK(cudaMemcpy(
 			reinterpret_cast<void*>(d_aabb_buffer),
 			aabbs,
-			OBJ_COUNT * sizeof(OptixAabb),
+			aabbs_size_in_bytes,
 			cudaMemcpyHostToDevice
 		));
 
+		const uint32_t* indices;
+		const size_t obj_indices_size_in_bytes = world.indices_buffer(indices);
 		CUdeviceptr  d_obj_indices = 0;
-		const size_t obj_indices_size_in_bytes = OBJ_COUNT * sizeof(uint32_t);
 		CUDA_CHECK(cudaMalloc(reinterpret_cast<void**>(&d_obj_indices), obj_indices_size_in_bytes));
 		CUDA_CHECK(cudaMemcpy(
 			reinterpret_cast<void*>(d_obj_indices),
-			g_obj_indices,
+			indices,
 			obj_indices_size_in_bytes,
 			cudaMemcpyHostToDevice
 		));
@@ -129,11 +139,15 @@ void Init()
 
 		aabb_input.type = OPTIX_BUILD_INPUT_TYPE_CUSTOM_PRIMITIVES;
 		aabb_input.customPrimitiveArray.aabbBuffers = &d_aabb_buffer;
-		aabb_input.customPrimitiveArray.numPrimitives = OBJ_COUNT;
+		aabb_input.customPrimitiveArray.numPrimitives = world.objects_count();
 
-		uint32_t aabb_input_flags[OBJ_COUNT] = { OPTIX_GEOMETRY_FLAG_NONE };
+		unsigned int* aabb_input_flags = new unsigned int[world.objects_count()];
+		for (size_t i = 0; i < world.objects_count(); ++i)
+		{
+			aabb_input_flags[i] = OPTIX_GEOMETRY_FLAG_NONE;
+		}
 		aabb_input.customPrimitiveArray.flags = aabb_input_flags;
-		aabb_input.customPrimitiveArray.numSbtRecords = OBJ_COUNT;
+		aabb_input.customPrimitiveArray.numSbtRecords = world.objects_count();
 		aabb_input.customPrimitiveArray.sbtIndexOffsetBuffer = d_obj_indices;
 		aabb_input.customPrimitiveArray.sbtIndexOffsetSizeInBytes = sizeof(uint32_t);
 
@@ -171,6 +185,7 @@ void Init()
 		CUDA_CHECK(cudaFree((void*)d_temp_buffer_gas));
 		CUDA_CHECK(cudaFree((void*)d_aabb_buffer));
 		CUDA_CHECK(cudaFree((void*)d_obj_indices));
+		delete[] aabb_input_flags;
 
 		size_t compacted_gas_size;
 		CUDA_CHECK(cudaMemcpy(&compacted_gas_size, (void*)emitProperty.result, sizeof(size_t), cudaMemcpyDeviceToHost));
@@ -203,7 +218,7 @@ void Init()
 		pipeline_compile_options.usesMotionBlur = false;
 		pipeline_compile_options.traversableGraphFlags = OPTIX_TRAVERSABLE_GRAPH_FLAG_ALLOW_SINGLE_GAS;
 		pipeline_compile_options.numPayloadValues = 2;
-		pipeline_compile_options.numAttributeValues = 7;
+		pipeline_compile_options.numAttributeValues = 6;
 		pipeline_compile_options.exceptionFlags = OPTIX_EXCEPTION_FLAG_NONE;  // TODO: should be OPTIX_EXCEPTION_FLAG_STACK_OVERFLOW;
 		pipeline_compile_options.pipelineLaunchParamsVariableName = "params";
 
@@ -283,7 +298,7 @@ void Init()
 			&program_group_options,
 			log,
 			&sizeof_log,
-			&hitgroup_prog_group_lambertian
+			&hitgroup_prog_map["lambertian"]
 		));
 
 		OptixProgramGroupDesc hitgroup_prog_group_metal_desc = {};
@@ -302,7 +317,7 @@ void Init()
 			&program_group_options,
 			log,
 			&sizeof_log,
-			&hitgroup_prog_group_metal
+			&hitgroup_prog_map["metal"]
 		));
 
 		OptixProgramGroupDesc hitgroup_prog_group_dielectric_desc = {};
@@ -321,7 +336,7 @@ void Init()
 			&program_group_options,
 			log,
 			&sizeof_log,
-			&hitgroup_prog_group_dielectric
+			&hitgroup_prog_map["dielectric"]
 		));
 	}
 
@@ -330,7 +345,7 @@ void Init()
 	//
 	{
 		const uint32_t    max_trace_depth = 31;
-		OptixProgramGroup program_groups[] = { raygen_prog_group, miss_prog_group, hitgroup_prog_group_lambertian, hitgroup_prog_group_metal, hitgroup_prog_group_dielectric };
+		OptixProgramGroup program_groups[] = { raygen_prog_group, miss_prog_group, hitgroup_prog_map["lambertian"], hitgroup_prog_map["metal"], hitgroup_prog_map["lambertian"] };
 
 		OptixPipelineLinkOptions pipeline_link_options = {};
 		pipeline_link_options.maxTraceDepth = max_trace_depth;
@@ -398,30 +413,17 @@ void Init()
 
 		CUdeviceptr hitgroup_records;
 		size_t      hitgroup_record_size = sizeof(HitGroupSbtRecord);
-		CUDA_CHECK(cudaMalloc(reinterpret_cast<void**>(&hitgroup_records), hitgroup_record_size * OBJ_COUNT));
-		HitGroupSbtRecord hg_sbts[OBJ_COUNT];
-		
-		auto material_ground = material{ make_float3(0.8f, 0.8f, 0.0f) };
-		auto material_center = material{ make_float3(0.1f, 0.2f, 0.5f) };
-		auto material_left   = material{ 1.5f };
-		auto material_right  = material{ make_float3(0.8f, 0.6f, 0.2f), 0.0f };
-
-		hg_sbts[0].data = { make_float3(0.0f, -100.5f, -1.0f), 100.0f, material_ground };
-		OPTIX_CHECK(optixSbtRecordPackHeader(hitgroup_prog_group_lambertian, &hg_sbts[0]));
-		hg_sbts[1].data = { make_float3(0.0f, 0.0f, -1.0f),      0.5f, material_center };
-		OPTIX_CHECK(optixSbtRecordPackHeader(hitgroup_prog_group_lambertian, &hg_sbts[1]));
-		hg_sbts[2].data = { make_float3(-1.0f, 0.0f, -1.0f),     0.5f, material_left };
-		OPTIX_CHECK(optixSbtRecordPackHeader(hitgroup_prog_group_dielectric, &hg_sbts[2]));
-		hg_sbts[3].data = { make_float3(-1.0f, 0.0f, -1.0f),   -0.45f, material_left };
-		OPTIX_CHECK(optixSbtRecordPackHeader(hitgroup_prog_group_dielectric, &hg_sbts[3]));
-		hg_sbts[4].data = { make_float3(1.0f, 0.0f, -1.0f),      0.5f, material_right };
-		OPTIX_CHECK(optixSbtRecordPackHeader(hitgroup_prog_group_metal,      &hg_sbts[4]));
+		CUDA_CHECK(cudaMalloc(reinterpret_cast<void**>(&hitgroup_records), hitgroup_record_size * world.objects_count()));
+		for (size_t i = 0; i < world.objects_count(); ++i)
+		{
+			optixSbtRecordPackHeader(hitgroup_prog_map[world.get_material_hitgroup(i)], world.get_hitgroup_stb(i));
+		}
 		
 
 		CUDA_CHECK(cudaMemcpy(
 			reinterpret_cast<void*>(hitgroup_records),
-			hg_sbts,
-			hitgroup_record_size * OBJ_COUNT,
+			world.objects_stb(),
+			hitgroup_record_size * world.objects_count(),
 			cudaMemcpyHostToDevice
 		));
 
@@ -431,12 +433,8 @@ void Init()
 		sbt.missRecordCount = 1;
 		sbt.hitgroupRecordBase = hitgroup_records;
 		sbt.hitgroupRecordStrideInBytes = sizeof(HitGroupSbtRecord);
-		sbt.hitgroupRecordCount = OBJ_COUNT;
+		sbt.hitgroupRecordCount = world.objects_count();
 	}
-
-
-
-
 }
  
 float4* Launch(int width, int height)
@@ -495,9 +493,10 @@ void Cleanup()
 	OPTIX_CHECK(optixPipelineDestroy(pipeline));
 	OPTIX_CHECK(optixProgramGroupDestroy(raygen_prog_group));
 	OPTIX_CHECK(optixProgramGroupDestroy(miss_prog_group));
-	OPTIX_CHECK(optixProgramGroupDestroy(hitgroup_prog_group_lambertian));
-	OPTIX_CHECK(optixProgramGroupDestroy(hitgroup_prog_group_metal));
-	OPTIX_CHECK(optixProgramGroupDestroy(hitgroup_prog_group_dielectric));
+	for (auto& hitgroup : hitgroup_prog_map)
+	{
+		OPTIX_CHECK(optixProgramGroupDestroy(hitgroup.second));
+	}
 	OPTIX_CHECK(optixModuleDestroy(module));
 
 	OPTIX_CHECK(optixDeviceContextDestroy(context));

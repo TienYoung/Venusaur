@@ -3,6 +3,7 @@
 #include "vec_math.h"
 
 #include "material.h"
+#include "sphere.h"
 
 struct Params
 {

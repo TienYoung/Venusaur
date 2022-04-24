@@ -106,12 +106,14 @@
       <NvccCompilation Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">ptx</NvccCompilation>
       <TargetMachinePlatform Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">64</TargetMachinePlatform>
       <FastMath Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</FastMath>
+      <GPUDebugInfo Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</GPUDebugInfo>
     </CudaCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="camera.h" />
     <ClInclude Include="Exception.h" />
     <ClInclude Include="Hello.h" />
+    <ClInclude Include="hitable_list.h" />
     <ClInclude Include="sphere.h" />
     <ClInclude Include="material.h" />
     <ClInclude Include="Preprocessor.h" />
