@@ -7,12 +7,12 @@ struct SphereHitGroupData
 	material mat;
 };
 
-static __host__ SphereHitGroupData makeSphere( const float3& center, float radius, const material& mat)
+static __host__ SphereHitGroupData make_sphere( const float3& center, float radius, const material& mat)
 {
 	return { center, radius, mat };
 }
 
-static __host__ OptixAabb genAABB(const SphereHitGroupData& sphere)
+static __host__ OptixAabb gen_aabb(const SphereHitGroupData& sphere)
 {
 	float radius = fabsf(sphere.radius);
 	return { 

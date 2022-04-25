@@ -30,8 +30,8 @@ typedef SbtRecord<RayGenData> RayGenSbtRecord;
 typedef SbtRecord<MissData>        MissSbtRecord;
 typedef SbtRecord<SphereHitGroupData> HitGroupSbtRecord;
 
-#include "hitable_list.h"
 #include "camera.h"
+#include "hitable_list.h"
 
 
 static void context_log_cb(unsigned int level, const char* tag, const char* message, void* /*cbdata */)
@@ -60,33 +60,22 @@ float4* device_pixels = nullptr;
 std::vector<float4> host_pixels;
 
 // Image
-float3 lookfrom{ 3, 3, 2 };
-float3 lookat{ 0, 0, -1 };
+float3 lookfrom{ 13, 2, 3 };
+float3 lookat{ 0, 0, 0 };
 float3 vup{ 0, 1, 0 };
-auto dist_to_focus = length(lookfrom - lookat);
-auto aperture = 2.0f;
-const auto aspect_ratio = 16.0f / 9.0f;
-const int image_width = 400;
+auto dist_to_focus = 10.0f;
+auto aperture = 0.1f;
+const auto aspect_ratio = 3.0f / 2.0f;
+const int image_width = 1200;
 const int image_height = static_cast<int>(image_width / aspect_ratio);
-const int samples_per_pixel = 100;
+const int samples_per_pixel = 500;
 void Init()
 {
 	camera cam(lookfrom, lookat, vup, 20.0f, aspect_ratio, aperture, dist_to_focus);
 
 	char log[2048]; // For error reporting from OptiX creation functions
 
-	hittable_list world;
-	
-	auto material_ground = makeLambertianMat(make_float3(0.8f, 0.8f, 0.0f));
-	auto material_center = makeLambertianMat(make_float3(0.1f, 0.2f, 0.5f));
-	auto material_left = makeDielectricMat(1.5f);
-	auto material_right = makeMetalMat(make_float3(0.8f, 0.6f, 0.2f), 0.0f);
-
-	world.add(makeSphere(make_float3( 0.0f, -100.5f, -1.0f), 100.0f, material_ground), "lambertian");
-	world.add(makeSphere(make_float3( 0.0f,    0.0f, -1.0f),   0.5f, material_center), "lambertian");
-	world.add(makeSphere(make_float3(-1.0f,    0.0f, -1.0f),   0.5f, material_left),   "dielectric");
-	world.add(makeSphere(make_float3(-1.0f,    0.0f, -1.0f), -0.45f, material_left),   "dielectric");
-	world.add(makeSphere(make_float3( 1.0f,    0.0f, -1.0f),   0.5f, material_right),  "metal");
+	hittable_list world = random_scene();
 
 	//
 	// Initialize CUDA and create OptiX context
@@ -493,10 +482,10 @@ void Cleanup()
 	OPTIX_CHECK(optixPipelineDestroy(pipeline));
 	OPTIX_CHECK(optixProgramGroupDestroy(raygen_prog_group));
 	OPTIX_CHECK(optixProgramGroupDestroy(miss_prog_group));
-	for (auto& hitgroup : hitgroup_prog_map)
-	{
-		OPTIX_CHECK(optixProgramGroupDestroy(hitgroup.second));
-	}
+	//for (auto& hitgroup : hitgroup_prog_map)
+	//{
+	//	OPTIX_CHECK(optixProgramGroupDestroy(hitgroup.second));
+	//}
 	OPTIX_CHECK(optixModuleDestroy(module));
 
 	OPTIX_CHECK(optixDeviceContextDestroy(context));

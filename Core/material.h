@@ -13,17 +13,17 @@ struct material
 	};
 };
 
-static __host__ material makeLambertianMat(const float3& albedo)
+static __host__ material make_lambertian(const float3& albedo)
 {
 	return material{ albedo };
 }
 
-static __host__ material makeMetalMat(const float3& albedo, float fuzz)
+static __host__ material make_metal(const float3& albedo, float fuzz)
 {
 	return material{ albedo, fuzz };
 }
 
-static __host__ material makeDielectricMat(float ir)
+static __host__ material make_dielectric(float ir)
 {
 	return material{ ir };
 }

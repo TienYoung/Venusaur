@@ -120,7 +120,7 @@ int main(int argc, char* argv[])
 		return -1;
 	}
 
-	glfwSetWindowAspectRatio(window, 16, 9);
+	glfwSetWindowAspectRatio(window, image_width, image_height);
 	glfwSetFramebufferSizeCallback(window, ResizeCallback);
 	glfwSetKeyCallback(window, KeyCallback);
 
