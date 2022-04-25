@@ -68,10 +68,12 @@ auto aperture = 0.1f;
 const auto aspect_ratio = 3.0f / 2.0f;
 const int image_width = 1200;
 const int image_height = static_cast<int>(image_width / aspect_ratio);
-const int samples_per_pixel = 500;
+const int samples_per_pixel = 16;
+
+camera* cam;
 void Init()
 {
-	camera cam(lookfrom, lookat, vup, 20.0f, aspect_ratio, aperture, dist_to_focus);
+	cam = new camera(lookfrom, lookat, vup, 20.0f, aspect_ratio, aperture, dist_to_focus);
 
 	char log[2048]; // For error reporting from OptiX creation functions
 
@@ -333,7 +335,7 @@ void Init()
 	// Link pipeline
 	//
 	{
-		const uint32_t    max_trace_depth = 31;
+		const uint32_t    max_trace_depth = 3;
 		OptixProgramGroup program_groups[] = { raygen_prog_group, miss_prog_group, hitgroup_prog_map["lambertian"], hitgroup_prog_map["metal"], hitgroup_prog_map["lambertian"] };
 
 		OptixPipelineLinkOptions pipeline_link_options = {};
@@ -375,18 +377,18 @@ void Init()
 	// Set up shader binding table
 	//
 	{
-		CUdeviceptr  raygen_record;
-		const size_t raygen_record_size = sizeof(RayGenSbtRecord);
-		CUDA_CHECK(cudaMalloc(reinterpret_cast<void**>(&raygen_record), raygen_record_size));
-		RayGenSbtRecord rg_sbt;
-		OPTIX_CHECK(optixSbtRecordPackHeader(raygen_prog_group, &rg_sbt));
-		cam.set_sbt(rg_sbt);	
-		CUDA_CHECK(cudaMemcpy(
-			reinterpret_cast<void*>(raygen_record),
-			&rg_sbt,
-			raygen_record_size,
-			cudaMemcpyHostToDevice
-		));
+		//CUdeviceptr  raygen_record;
+		//const size_t raygen_record_size = sizeof(RayGenSbtRecord);
+		//CUDA_CHECK(cudaMalloc(reinterpret_cast<void**>(&raygen_record), raygen_record_size));
+		//RayGenSbtRecord rg_sbt;
+		//OPTIX_CHECK(optixSbtRecordPackHeader(raygen_prog_group, &rg_sbt));
+		//cam->set_sbt(rg_sbt);	
+		//CUDA_CHECK(cudaMemcpy(
+		//	reinterpret_cast<void*>(raygen_record),
+		//	&rg_sbt,
+		//	raygen_record_size,
+		//	cudaMemcpyHostToDevice
+		//));
 
 		CUdeviceptr miss_record;
 		size_t      miss_record_size = sizeof(MissSbtRecord);
@@ -416,7 +418,7 @@ void Init()
 			cudaMemcpyHostToDevice
 		));
 
-		sbt.raygenRecord = raygen_record;
+		//sbt.raygenRecord = raygen_record;
 		sbt.missRecordBase = miss_record;
 		sbt.missRecordStrideInBytes = sizeof(MissSbtRecord);
 		sbt.missRecordCount = 1;
@@ -425,8 +427,26 @@ void Init()
 		sbt.hitgroupRecordCount = world.objects_count();
 	}
 }
+
+void UpdateHitGroupData()
+{
+	CUdeviceptr  raygen_record;
+	const size_t raygen_record_size = sizeof(RayGenSbtRecord);
+	CUDA_CHECK(cudaMalloc(reinterpret_cast<void**>(&raygen_record), raygen_record_size));
+	RayGenSbtRecord rg_sbt;
+	OPTIX_CHECK(optixSbtRecordPackHeader(raygen_prog_group, &rg_sbt));
+	cam->set_sbt(rg_sbt);
+	CUDA_CHECK(cudaMemcpy(
+		reinterpret_cast<void*>(raygen_record),
+		&rg_sbt,
+		raygen_record_size,
+		cudaMemcpyHostToDevice
+	));
+
+	sbt.raygenRecord = raygen_record;
+}
  
-float4* Launch(int width, int height)
+float4* Launch(int width, int height, uint32_t sub_index)
 {
 	//
 	// Create cuda device resource.
@@ -445,6 +465,7 @@ float4* Launch(int width, int height)
 	params.image_width = width;
 	params.image_height = height;
 	params.samples_per_pixel = samples_per_pixel;
+	params.subframe_index = sub_index;
 	params.handle = gas_handle;
 
 	CUdeviceptr d_param;
@@ -475,6 +496,7 @@ float4* Launch(int width, int height)
 
 void Cleanup()
 {
+	delete cam;
 	CUDA_CHECK(cudaFree(reinterpret_cast<void*>(sbt.raygenRecord)));
 	CUDA_CHECK(cudaFree(reinterpret_cast<void*>(sbt.missRecordBase)));
 	CUDA_CHECK(cudaFree(reinterpret_cast<void*>(sbt.hitgroupRecordBase)));

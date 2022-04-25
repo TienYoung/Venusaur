@@ -11,6 +11,7 @@ struct Params
 	unsigned int image_width;
 	unsigned int image_height;
 	unsigned int samples_per_pixel;
+	unsigned int subframe_index;
 	OptixTraversableHandle handle;
 };
 

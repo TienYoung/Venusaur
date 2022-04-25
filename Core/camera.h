@@ -35,6 +35,21 @@ public:
 		rg_sbt.data.lens_radius = lens_radius;
 	}
 
+	void move_forward(float speed)
+	{
+		origin += make_float3(0, 0, -speed);
+	}
+
+	void move_right(float speed)
+	{
+		origin += make_float3(speed, 0, 0);
+	}
+
+	void move_up(float speed)
+	{
+		origin += make_float3(0, speed, 0);
+	}
+
 private:
 	float3 origin;
 	float3 lower_left_corner;

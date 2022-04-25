@@ -13,9 +13,31 @@ static void KeyCallback(GLFWwindow* window, int32_t key, int32_t /*scancode*/, i
 {
 	if (action == GLFW_PRESS)
 	{
-		if (key == GLFW_KEY_Q || key == GLFW_KEY_ESCAPE)
+		// Exit
+		if (key == GLFW_KEY_ESCAPE)
 		{
 			glfwSetWindowShouldClose(window, true);
+		}
+	}
+	if (action == GLFW_REPEAT)
+	{
+		// Move
+		switch (key)
+		{
+		case GLFW_KEY_W:
+			cam->move_forward(0.1f);
+			break;
+		case GLFW_KEY_S:
+			cam->move_forward(-0.1f);
+			break;
+		case GLFW_KEY_D:
+			cam->move_right(0.1f);
+			break;
+		case GLFW_KEY_A:
+			cam->move_right(-0.1f);
+			break;
+		default:
+			break;
 		}
 	}
 }
@@ -169,13 +191,9 @@ int main(int argc, char* argv[])
 	(glVertexArrayVertexBuffer(vao, 0, vbo, 0, 3 * sizeof(GLfloat)));
 	glVertexArrayElementBuffer(vao, ebo);
 
-	auto dataPtr = Launch(image_width, image_height);
-	std::vector<float4> data(dataPtr, dataPtr + image_width * image_height);
-
 	// PBO
 	GLuint pbo;
 	(glCreateBuffers(1, &pbo));
-	(glNamedBufferStorage(pbo, sizeof(float4) * image_width * image_height, (void*)data.data(), GL_DYNAMIC_STORAGE_BIT));
 
 	GLuint program = createGLProgram(s_vert_source, s_frag_source);
 
@@ -207,6 +225,11 @@ int main(int argc, char* argv[])
 		//(glClearNamedFramebufferfv(0, GL_DEPTH, 0, clearDepth));
 
 		(glUseProgram(program));
+
+		UpdateHitGroupData();
+		auto dataPtr = Launch(image_width, image_height, 0);
+		std::vector<float4> data(dataPtr, dataPtr + image_width * image_height);
+		(glNamedBufferData(pbo, sizeof(float4) * image_width * image_height, (void*)data.data(), GL_STATIC_DRAW));
 
 		glBindTextureUnit(0, renderTex);
 
