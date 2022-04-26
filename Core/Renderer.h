@@ -60,9 +60,9 @@ float4* device_pixels = nullptr;
 std::vector<float4> host_pixels;
 
 // Image
-float3 lookfrom{ 13, 2, 3 };
-float3 lookat{ 0, 0, 0 };
-float3 vup{ 0, 1, 0 };
+glm::vec3 lookfrom{ 13, 2, 3 };
+glm::vec3 lookat{ 0, 0, 0 };
+glm::vec3 vup{ 0, 1, 0 };
 auto dist_to_focus = 10.0f;
 auto aperture = 0.1f;
 const auto aspect_ratio = 3.0f / 2.0f;

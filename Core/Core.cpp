@@ -19,7 +19,7 @@ static void KeyCallback(GLFWwindow* window, int32_t key, int32_t /*scancode*/, i
 			glfwSetWindowShouldClose(window, true);
 		}
 	}
-	if (action == GLFW_REPEAT)
+	if (action == GLFW_REPEAT || action == GLFW_PRESS)
 	{
 		// Move
 		switch (key)
@@ -35,6 +35,24 @@ static void KeyCallback(GLFWwindow* window, int32_t key, int32_t /*scancode*/, i
 			break;
 		case GLFW_KEY_A:
 			cam->move_right(-0.1f);
+			break;
+		case GLFW_KEY_Q:
+			cam->move_up(-0.1f);
+			break;
+		case GLFW_KEY_E:
+			cam->move_up(0.1f);
+			break;
+		case GLFW_KEY_UP:
+			cam->pitch(0.1f);
+			break;
+		case GLFW_KEY_DOWN:
+			cam->pitch(-0.1f);
+			break;
+		case GLFW_KEY_RIGHT:
+			cam->yaw(-0.1f);
+			break;
+		case GLFW_KEY_LEFT:
+			cam->yaw(0.1f);
 			break;
 		default:
 			break;
