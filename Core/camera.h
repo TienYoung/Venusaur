@@ -68,25 +68,22 @@ public:
 
 	void pitch(float speed)
 	{
-		glm::quat front = glm::quatLookAt(-w, world_up);
-		front = glm::rotate(front, glm::radians(speed), glm::vec3(1, 0, 0));
-		target = origin + normalize(-w * front);
+		glm::quat rotation = glm::rotate(glm::quat(1, 0, 0, 0), glm::radians(speed), u);
+		target = origin + normalize(-w * rotation);
 		update_uvw();
 	}
 
 	void yaw(float speed)
 	{
-		glm::quat front = glm::quatLookAt(-w, world_up);
-		front = glm::rotate(front, glm::radians(speed), glm::vec3(0, 1, 0));
-		target = origin + normalize(-w * front);
+		glm::quat rotation = glm::rotate(glm::quat(1, 0, 0, 0), glm::radians(speed), v);
+		target = origin + normalize(-w * rotation);
 		update_uvw();
 	}
 
 	void roll(float speed)
 	{
-		glm::quat front = glm::quatLookAt(-w, world_up);
-		front = glm::rotate(front, glm::radians(speed), glm::vec3(0, 0, 1));
-		target = origin + normalize(-w * front);
+		glm::quat rotation = glm::rotate(glm::quat(1, 0, 0, 0), glm::radians(speed), w);
+		target = origin + normalize(-w * rotation);
 		update_uvw();
 	}
 
@@ -98,7 +95,6 @@ private:
 	glm::vec3 origin;
 	glm::vec3 target;
 	glm::vec3 world_up;
-	glm::vec3 euler_angles;
 	glm::vec3 lower_left_corner;
 	glm::vec3 horizontal;
 	glm::vec3 vertical;

@@ -43,16 +43,16 @@ static void KeyCallback(GLFWwindow* window, int32_t key, int32_t /*scancode*/, i
 			cam->move_up(0.1f);
 			break;
 		case GLFW_KEY_UP:
-			cam->pitch(0.1f);
+			cam->pitch(-1.0f);
 			break;
 		case GLFW_KEY_DOWN:
-			cam->pitch(-0.1f);
+			cam->pitch(1.0f);
 			break;
 		case GLFW_KEY_RIGHT:
-			cam->yaw(-0.1f);
+			cam->yaw(1.0f);
 			break;
 		case GLFW_KEY_LEFT:
-			cam->yaw(0.1f);
+			cam->yaw(-1.0f);
 			break;
 		default:
 			break;
