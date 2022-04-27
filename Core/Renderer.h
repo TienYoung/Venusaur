@@ -30,7 +30,7 @@ typedef SbtRecord<RayGenData> RayGenSbtRecord;
 typedef SbtRecord<MissData>        MissSbtRecord;
 typedef SbtRecord<SphereHitGroupData> HitGroupSbtRecord;
 
-#include "camera.h"
+#include "Camera.h"
 #include "hitable_list.h"
 
 
@@ -68,12 +68,12 @@ auto aperture = 0.1f;
 const auto aspect_ratio = 3.0f / 2.0f;
 const int image_width = 1200;
 const int image_height = static_cast<int>(image_width / aspect_ratio);
-const int samples_per_pixel = 16;
+const int samples_per_pixel = 4;
 
-camera* cam;
+Camera* cam;
 void Init()
 {
-	cam = new camera(lookfrom, lookat, vup, 20.0f, aspect_ratio, aperture, dist_to_focus);
+	cam = new Camera(lookfrom, 20.0f, aspect_ratio, aperture, dist_to_focus);
 
 	char log[2048]; // For error reporting from OptiX creation functions
 
@@ -435,7 +435,14 @@ void UpdateHitGroupData()
 	CUDA_CHECK(cudaMalloc(reinterpret_cast<void**>(&raygen_record), raygen_record_size));
 	RayGenSbtRecord rg_sbt;
 	OPTIX_CHECK(optixSbtRecordPackHeader(raygen_prog_group, &rg_sbt));
-	cam->set_sbt(rg_sbt);
+	rg_sbt.data.origin = make_float3(cam->GetPosition().x, cam->GetPosition().y, cam->GetPosition().z);
+	glm::vec3 u, v, w;
+	cam->UVWFrame(u, v, w);
+	rg_sbt.data.u = make_float3(u.x, u.y, u.z);
+	rg_sbt.data.v = make_float3(v.x, v.y, v.z);
+	rg_sbt.data.w = make_float3(w.x, w.y, w.z);
+	rg_sbt.data.lens_radius = cam->GetLensRadius();
+
 	CUDA_CHECK(cudaMemcpy(
 		reinterpret_cast<void*>(raygen_record),
 		&rg_sbt,

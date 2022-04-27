@@ -97,6 +97,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="Camera.cpp" />
     <ClCompile Include="Core.cpp" />
     <ClCompile Include="imgui\imgui.cpp" />
     <ClCompile Include="imgui\imgui_draw.cpp" />
@@ -116,7 +117,7 @@
     </CudaCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="camera.h" />
+    <ClInclude Include="Camera.h" />
     <ClInclude Include="Exception.h" />
     <ClInclude Include="Hello.h" />
     <ClInclude Include="hitable_list.h" />
@@ -136,7 +137,7 @@
       <FileType>Document</FileType>
     </ClInclude>
     <ClInclude Include="Renderer.h" />
-    <ClInclude Include="rtweekend.h" />
+    <ClInclude Include="Common.h" />
     <ClInclude Include="vec_math.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

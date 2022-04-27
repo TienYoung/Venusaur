@@ -110,10 +110,12 @@ static __forceinline__ __device__ void get_ray(float s, float t, float3& origin,
 {
 	RayGenData* rtData = reinterpret_cast<RayGenData*>(optixGetSbtDataPointer());
 	float3 rd = rtData->lens_radius * random_in_unit_disk(seed);
-	float3 offset = rtData->u * rd.x + rtData->v * rd.y;
+	float3 u = normalize(rtData->u);
+	float3 v = normalize(rtData->v);
+	float3 offset = u * rd.x + v * rd.y;
 
 	origin = rtData->origin + offset;
-	direction = rtData->lower_left_corner + s * rtData->horizontal + t * rtData->vertical - rtData->origin - offset;
+	direction = s * rtData->u + t * rtData->v + rtData->w - offset;
 }
 
 extern "C" __global__ void __raygen__rg()

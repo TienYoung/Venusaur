@@ -251,6 +251,9 @@ int main(int argc, char* argv[])
 	auto last_time = std::chrono::steady_clock::now();
 	auto current_time = last_time;
 
+	auto end = std::chrono::steady_clock::now();
+	auto start = end;
+
 	// Rendering.
 	while (!glfwWindowShouldClose(window))
 	{
@@ -264,11 +267,17 @@ int main(int argc, char* argv[])
 
 		ImGui::Begin("Text", nullptr, ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_NoInputs);
 		std::chrono::duration<double> seconds = current_time - last_time;
+		std::chrono::duration<double> optix_seconds = end - start;
+		std::chrono::duration<double> openGL_seconds = current_time - end;
 		double frame_time = seconds.count();
 		double fps = 1.0 / frame_time;
 		ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.0f, 0.6f, 0.1f, 1.0f));
-		ImGui::Text("Frame Time:%.2fms", frame_time * 1000);
-		ImGui::Text("FPS:%.1f", fps);
+		ImGui::Text("Frame Time:");
+		ImGui::Indent(10.0f);
+		ImGui::Text("OpenGL:\t%.2fms", openGL_seconds.count() * 1000);
+		ImGui::Text("Optix:\t%.2fms", optix_seconds.count() * 1000);
+		ImGui::Unindent(10.0f);
+		ImGui::Text("FPS:%.1f\t%2fms", fps, frame_time * 1000);
 		ImGui::PopStyleColor();
 		ImGui::End();
 
@@ -283,9 +292,12 @@ int main(int argc, char* argv[])
 
 		(glUseProgram(program));
 
+		start = std::chrono::steady_clock::now();
 		UpdateHitGroupData();
-		auto dataPtr = Launch(image_width, image_height, 0);
+		static uint32_t s = 0;
+		auto dataPtr = Launch(image_width, image_height, s++);
 		std::vector<float4> data(dataPtr, dataPtr + image_width * image_height);
+		end = std::chrono::steady_clock::now();
 		(glNamedBufferData(pbo, sizeof(float4) * image_width * image_height, (void*)data.data(), GL_STATIC_DRAW));
 
 		glBindTextureUnit(0, renderTex);
