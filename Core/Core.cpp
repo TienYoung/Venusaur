@@ -1,8 +1,14 @@
 #include "Renderer.h"
 
+#include <cassert>
+#include <chrono>
+
 #include <GL/gl3w.h>
 #include <GLFW/glfw3.h>
-#include <cassert>
+
+#include "imgui/imgui.h"
+#include "imgui/imgui_impl_glfw.h"
+#include "imgui/imgui_impl_opengl3.h"
 
 static void ErrorCallback(int error, const char* description)
 {
@@ -152,6 +158,7 @@ int main(int argc, char* argv[])
 	glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
 	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 6);
 	glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+	glfwWindowHint(GLFW_OPENGL_DEBUG_CONTEXT, true);
 
 	window = glfwCreateWindow(image_width, image_height, "Hello Optix", nullptr, nullptr);
 	if (!window)
@@ -173,6 +180,18 @@ int main(int argc, char* argv[])
 		glfwTerminate();
 		return -1;
 	}
+
+	IMGUI_CHECKVERSION();
+	ImGui::CreateContext();
+	ImGuiIO& io = ImGui::GetIO(); (void)io;
+
+	ImGui::StyleColorsDark();
+
+	ImGui_ImplGlfw_InitForOpenGL(window, true);
+	ImGui_ImplOpenGL3_Init("#version 460 core");
+
+	ImFont* font = io.Fonts->AddFontFromFileTTF("c:\\Windows\\Fonts\\SegoeUI.ttf", 18.0f, NULL, io.Fonts->GetGlyphRangesChineseSimplifiedCommon());
+	IM_ASSERT(font != NULL);
 
 	glEnable(GL_DEBUG_OUTPUT);
 	glDebugMessageCallback(message_callback, nullptr);
@@ -229,11 +248,31 @@ int main(int argc, char* argv[])
 	(glTextureStorage2D(renderTex, 1, GL_RGBA8_SNORM, image_width, image_height));
 
 
-
+	auto last_time = std::chrono::steady_clock::now();
+	auto current_time = last_time;
 
 	// Rendering.
 	while (!glfwWindowShouldClose(window))
 	{
+		current_time = std::chrono::steady_clock::now();
+
+		glfwPollEvents();
+
+		ImGui_ImplOpenGL3_NewFrame();
+		ImGui_ImplGlfw_NewFrame();
+		ImGui::NewFrame();
+
+		ImGui::Begin("Text", nullptr, ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_NoInputs);
+		std::chrono::duration<double> seconds = current_time - last_time;
+		double frame_time = seconds.count();
+		double fps = 1.0 / frame_time;
+		ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.0f, 0.6f, 0.1f, 1.0f));
+		ImGui::Text("Frame Time:%.2fms", frame_time * 1000);
+		ImGui::Text("FPS:%.1f", fps);
+		ImGui::PopStyleColor();
+		ImGui::End();
+
+		ImGui::Render();
 		(glBindFramebuffer(GL_FRAMEBUFFER, 0));
 		//(glViewport(0, 0, image_width, image_height));
 
@@ -265,8 +304,11 @@ int main(int argc, char* argv[])
 		glBindVertexArray(vao);
 		glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, nullptr);
 
+		ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData()); 
+
 		glfwSwapBuffers(window);
-		glfwPollEvents();
+
+		last_time = current_time;
 	}
 
 
