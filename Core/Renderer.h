@@ -68,12 +68,13 @@ auto aperture = 0.1f;
 const auto aspect_ratio = 3.0f / 2.0f;
 const int image_width = 1200;
 const int image_height = static_cast<int>(image_width / aspect_ratio);
-const int samples_per_pixel = 4;
+const int samples_per_pixel = 16;
 
 Camera* cam;
 void Init()
 {
 	cam = new Camera(lookfrom, 20.0f, aspect_ratio, aperture, dist_to_focus);
+	cam->SetForward(lookat - lookfrom);
 
 	char log[2048]; // For error reporting from OptiX creation functions
 

@@ -115,7 +115,7 @@ static __forceinline__ __device__ void get_ray(float s, float t, float3& origin,
 	float3 offset = u * rd.x + v * rd.y;
 
 	origin = rtData->origin + offset;
-	direction = s * rtData->u + t * rtData->v + rtData->w - offset;
+	direction = rtData->w + s * rtData->u * 0.5 + t * rtData->v * 0.5 - offset;
 }
 
 extern "C" __global__ void __raygen__rg()
@@ -124,12 +124,12 @@ extern "C" __global__ void __raygen__rg()
 	const unsigned int image_index = launch_index.y * params.image_width + launch_index.x;;
 
 	float3 pixel_color = make_float3(0.0f);
-	unsigned int seed = tea<4>(image_index, params.subframe_index);
+	unsigned int seed = tea<4>(image_index, 0);
 	for (int s = 0; s < params.samples_per_pixel; ++s)
 	{
 		const int max_depth = 4;
-		auto u = double(launch_index.x + random_float(seed)) / (params.image_width - 1);
-		auto v = double(launch_index.y + random_float(seed)) / (params.image_height - 1);
+		auto u = 2 * float(launch_index.x + random_float(seed)) / (params.image_width - 1) - 1;
+		auto v = 2 * float(launch_index.y + random_float(seed)) / (params.image_height - 1) - 1;
 		float3 origin;
 		float3 direction;
 		get_ray(u, v, origin, direction, seed);

@@ -1,7 +1,5 @@
 #include "Camera.h"
 
-#include "Common.h"
-
 const glm::vec3& Camera::m_defaultForward = glm::vec3(0.0f, 0.0f, -1.0f);
 
 Camera::Camera()
@@ -21,6 +19,11 @@ void Camera::UVWFrame(glm::vec3& U, glm::vec3& V, glm::vec3& W)
 	U = m_u;
 	V = m_v;
 	W = m_w;
+}
+
+void Camera::SetForward(glm::vec3 direction)
+{
+	m_forward = normalize(direction);
 }
 
 void Camera::UpdateUVW()

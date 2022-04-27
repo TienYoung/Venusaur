@@ -31,35 +31,35 @@ static void KeyCallback(GLFWwindow* window, int32_t key, int32_t /*scancode*/, i
 		switch (key)
 		{
 		case GLFW_KEY_W:
-			cam->move_forward(0.1f);
+			cam->MoveForward(0.1f);
 			break;
 		case GLFW_KEY_S:
-			cam->move_forward(-0.1f);
+			cam->MoveForward(-0.1f);
 			break;
 		case GLFW_KEY_D:
-			cam->move_right(0.1f);
+			cam->MoveRight(0.1f);
 			break;
 		case GLFW_KEY_A:
-			cam->move_right(-0.1f);
+			cam->MoveRight(-0.1f);
 			break;
 		case GLFW_KEY_Q:
-			cam->move_up(-0.1f);
+			cam->MoveUp(-0.1f);
 			break;
 		case GLFW_KEY_E:
-			cam->move_up(0.1f);
+			cam->MoveUp(0.1f);
 			break;
-		case GLFW_KEY_UP:
-			cam->pitch(-1.0f);
-			break;
-		case GLFW_KEY_DOWN:
-			cam->pitch(1.0f);
-			break;
-		case GLFW_KEY_RIGHT:
-			cam->yaw(1.0f);
-			break;
-		case GLFW_KEY_LEFT:
-			cam->yaw(-1.0f);
-			break;
+		//case GLFW_KEY_UP:
+		//	cam->pitch(-1.0f);
+		//	break;
+		//case GLFW_KEY_DOWN:
+		//	cam->pitch(1.0f);
+		//	break;
+		//case GLFW_KEY_RIGHT:
+		//	cam->yaw(1.0f);
+		//	break;
+		//case GLFW_KEY_LEFT:
+		//	cam->yaw(-1.0f);
+		//	break;
 		default:
 			break;
 		}
@@ -265,7 +265,7 @@ int main(int argc, char* argv[])
 		ImGui_ImplGlfw_NewFrame();
 		ImGui::NewFrame();
 
-		ImGui::Begin("Text", nullptr, ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_NoInputs);
+		ImGui::Begin("Debug Info", nullptr);
 		std::chrono::duration<double> seconds = current_time - last_time;
 		std::chrono::duration<double> optix_seconds = end - start;
 		std::chrono::duration<double> openGL_seconds = current_time - end;
@@ -273,10 +273,10 @@ int main(int argc, char* argv[])
 		double fps = 1.0 / frame_time;
 		ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.0f, 0.6f, 0.1f, 1.0f));
 		ImGui::Text("Frame Time:");
-		ImGui::Indent(10.0f);
+		ImGui::Indent(20.0f);
 		ImGui::Text("OpenGL:\t%.2fms", openGL_seconds.count() * 1000);
 		ImGui::Text("Optix:\t%.2fms", optix_seconds.count() * 1000);
-		ImGui::Unindent(10.0f);
+		ImGui::Unindent(20.0f);
 		ImGui::Text("FPS:%.1f\t%2fms", fps, frame_time * 1000);
 		ImGui::PopStyleColor();
 		ImGui::End();

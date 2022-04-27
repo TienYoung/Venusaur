@@ -137,7 +137,6 @@
       <FileType>Document</FileType>
     </ClInclude>
     <ClInclude Include="Renderer.h" />
-    <ClInclude Include="Common.h" />
     <ClInclude Include="vec_math.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

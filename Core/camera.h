@@ -3,6 +3,9 @@
 #include <glm/glm.hpp>
 #include <glm/ext.hpp>
 
+#define WORLDUP glm::vec3(0.0f, 1.0f, 0.0f)
+
+
 class Camera
 {
 public:
@@ -18,20 +21,13 @@ public:
 
 	inline const glm::vec3& GetPosition() const { return m_position; }
 
-	void MoveForward(float speed)
-	{
-		m_position += m_forward * speed;
-	}
+	void SetForward(glm::vec3 direction);
 
-	void MoveRight(float speed)
-	{
-		m_position += normalize(m_u) * speed;
-	}
+	inline void MoveForward(float speed) { m_position += m_forward * speed; }
 
-	void MoveUp(float speed)
-	{
-		m_position += normalize(m_v) * speed;
-	}
+	inline void MoveRight(float speed) { m_position += normalize(m_u) * speed; }
+
+	inline void MoveUp(float speed) { m_position += normalize(m_v) * speed; }
 
 	//void pitch(float speed)
 	//{

@@ -1,6 +1,34 @@
 #pragma once
 
 #include <vector>
+#include <random>
+
+inline float random_float() {
+	static std::uniform_real_distribution<float> distribution(0.0, 1.0);
+	static std::mt19937 generator;
+	return distribution(generator);
+}
+
+inline float random_float(float min, float max) {
+	// Returns a random real in [min,max).
+	return min + (max - min) * random_float();
+}
+
+float3 random_in_unit_disk() {
+	while (true) {
+		auto p = make_float3(random_float(-1, 1), random_float(-1, 1), 0);
+		if (length(p) >= 1) continue;
+		return p;
+	}
+}
+
+inline static float3 random() {
+	return make_float3(random_float(), random_float(), random_float());
+}
+
+inline static float3 random(float min, float max) {
+	return make_float3(random_float(min, max), random_float(min, max), random_float(min, max));
+}
 
 class hittable_list
 {
@@ -82,13 +110,13 @@ hittable_list random_scene()
 
 				if (choose_mat < 0.8) {
 					// diffuse
-					auto albedo = random_float3() * random_float3();
+					auto albedo = random() * random();
 					sphere_material = make_lambertian(albedo);
 					world.add(make_sphere(center, 0.2, sphere_material), "lambertian");
 				}
 				else if (choose_mat < 0.95) {
 					// metal
-					auto albedo = random_float3(0.5, 1);
+					auto albedo = random(0.5, 1);
 					auto fuzz = random_float(0, 0.5);
 					sphere_material = make_metal(albedo, fuzz);
 					world.add(make_sphere(center, 0.2, sphere_material), "metal");
