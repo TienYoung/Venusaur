@@ -106,7 +106,7 @@ hittable_list random_scene()
 			float3 center = make_float3(a + 0.9 * random_float(), 0.2, b + 0.9 * random_float());
 
 			if (length(center - make_float3(4, 0.2, 0)) > 0.9) {
-				material sphere_material;
+				Material sphere_material;
 
 				if (choose_mat < 0.8) {
 					// diffuse

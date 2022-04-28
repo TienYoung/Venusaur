@@ -2,7 +2,7 @@
 
 #include "random.cuh"
 
-#include "Hello.h"
+#include "RayTracer.h"
 
 extern "C" 
 {
@@ -387,7 +387,7 @@ extern "C" __global__ void __closesthit__dielectric()
 	}
 }
 
-extern "C" __global__ void __miss__ray_color()
+extern "C" __global__ void __miss__ms()
 {
     float3 unit_direction = normalize(optixGetWorldRayDirection());
     auto t = 0.5 * (unit_direction.y + 1.0);

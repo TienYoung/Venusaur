@@ -23,7 +23,7 @@ public:
 
 	inline void SetForward(glm::vec3 direction) { m_forward = normalize(direction); }
 
-	inline float& GetFocalLengthRef() { return m_focalLength; }
+	inline float* GetFocalLengthRef() { return &m_focalLength; }
 
 	inline void MoveForward(float speed) { m_position += m_forward * speed; }
 

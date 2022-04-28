@@ -254,6 +254,18 @@ int main(int argc, char* argv[])
 	auto end = std::chrono::steady_clock::now();
 	auto start = end;
 
+	// Image
+	glm::vec3 lookfrom{ 13, 2, 3 };
+	glm::vec3 lookat{ 0, 0, 0 };
+	glm::vec3 vup{ 0, 1, 0 };
+	auto dist_to_focus = 10.0f;
+	auto aperture = 0.1f;
+	const auto aspect_ratio = 3.0f / 2.0f;
+	const int image_width = 1200;
+	const int image_height = static_cast<int>(image_width / aspect_ratio);
+	Camera* cam = new Camera(lookfrom, 20.0f, aspect_ratio, aperture, dist_to_focus);
+	cam->SetForward(lookat - lookfrom);
+
 	// Rendering.
 	while (!glfwWindowShouldClose(window))
 	{
@@ -280,7 +292,7 @@ int main(int argc, char* argv[])
 		ImGui::Text("FPS:%.1f\t%2fms", fps, frame_time * 1000);
 		ImGui::PopStyleColor();
 
-		ImGui::SliderFloat("Focal Length", &cam->GetFocalLengthRef(), 0.0f, 20.0f);
+		ImGui::SliderFloat("Focal Length", cam->GetFocalLengthRef(), 0.0f, 20.0f);
 		ImGui::End();
 
 		ImGui::Render();
