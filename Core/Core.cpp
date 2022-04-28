@@ -48,18 +48,18 @@ static void KeyCallback(GLFWwindow* window, int32_t key, int32_t /*scancode*/, i
 		case GLFW_KEY_E:
 			cam->MoveUp(0.1f);
 			break;
-		//case GLFW_KEY_UP:
-		//	cam->pitch(-1.0f);
-		//	break;
-		//case GLFW_KEY_DOWN:
-		//	cam->pitch(1.0f);
-		//	break;
-		//case GLFW_KEY_RIGHT:
-		//	cam->yaw(1.0f);
-		//	break;
-		//case GLFW_KEY_LEFT:
-		//	cam->yaw(-1.0f);
-		//	break;
+		case GLFW_KEY_UP:
+			cam->Pitch(1.0f);
+			break;
+		case GLFW_KEY_DOWN:
+			cam->Pitch(-1.0f);
+			break;
+		case GLFW_KEY_RIGHT:
+			cam->Yaw(1.0f);
+			break;
+		case GLFW_KEY_LEFT:
+			cam->Yaw(-1.0f);
+			break;
 		default:
 			break;
 		}
@@ -265,7 +265,7 @@ int main(int argc, char* argv[])
 		ImGui_ImplGlfw_NewFrame();
 		ImGui::NewFrame();
 
-		ImGui::Begin("Debug Info", nullptr);
+		ImGui::Begin("Debugging", nullptr);
 		std::chrono::duration<double> seconds = current_time - last_time;
 		std::chrono::duration<double> optix_seconds = end - start;
 		std::chrono::duration<double> openGL_seconds = current_time - end;
@@ -279,6 +279,8 @@ int main(int argc, char* argv[])
 		ImGui::Unindent(20.0f);
 		ImGui::Text("FPS:%.1f\t%2fms", fps, frame_time * 1000);
 		ImGui::PopStyleColor();
+
+		ImGui::SliderFloat("Focal Length", &cam->GetFocalLengthRef(), 0.0f, 20.0f);
 		ImGui::End();
 
 		ImGui::Render();

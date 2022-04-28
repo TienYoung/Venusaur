@@ -11,7 +11,7 @@ class Camera
 public:
 	Camera();
 
-	Camera(const glm::vec3& origin, float vfov, float aspect, float aperture, float focal_length);
+	Camera(const glm::vec3& origin, float vfov, float aspect, float aperture, float focalLength);
 
 	static const glm::vec3& m_defaultForward;
 
@@ -21,7 +21,9 @@ public:
 
 	inline const glm::vec3& GetPosition() const { return m_position; }
 
-	void SetForward(glm::vec3 direction);
+	inline void SetForward(glm::vec3 direction) { m_forward = normalize(direction); }
+
+	inline float& GetFocalLengthRef() { return m_focalLength; }
 
 	inline void MoveForward(float speed) { m_position += m_forward * speed; }
 
@@ -29,26 +31,23 @@ public:
 
 	inline void MoveUp(float speed) { m_position += normalize(m_v) * speed; }
 
-	//void pitch(float speed)
-	//{
-	//	glm::quat rotation = glm::rotate(glm::quat(1, 0, 0, 0), glm::radians(speed), u);
-	//	m_target = m_position + normalize(-w * rotation);
-	//	update_uvw();
-	//}
+	void Pitch(float speed)
+	{
+		glm::quat rotation = glm::rotate(glm::quat(1, 0, 0, 0), glm::radians(speed), m_u);
+		m_forward = normalize(m_forward * rotation);
+	}
 
-	//void yaw(float speed)
-	//{
-	//	glm::quat rotation = glm::rotate(glm::quat(1, 0, 0, 0), glm::radians(speed), v);
-	//	m_target = m_position + normalize(-w * rotation);
-	//	update_uvw();
-	//}
+	void Yaw(float speed)
+	{
+		glm::quat rotation = glm::rotate(glm::quat(1, 0, 0, 0), glm::radians(speed), m_v);
+		m_forward = normalize(m_forward * rotation);
+	}
 
-	//void roll(float speed)
-	//{
-	//	glm::quat rotation = glm::rotate(glm::quat(1, 0, 0, 0), glm::radians(speed), w);
-	//	m_target = m_position + normalize(-w * rotation);
-	//	update_uvw();
-	//}
+	void Roll(float speed)
+	{
+		glm::quat rotation = glm::rotate(glm::quat(1, 0, 0, 0), glm::radians(speed), m_w);
+		m_forward = normalize(m_forward * rotation);
+	}
 
 private:
 	glm::vec3 m_position = glm::vec3(0.0f);

@@ -7,8 +7,8 @@ Camera::Camera()
 	UpdateUVW();
 }
 
-Camera::Camera(const glm::vec3& origin, float vfov, float aspect, float aperture, float focal_length)
-	: m_position(origin), m_vfov(vfov), m_aspect(aspect), m_aperture(aperture), m_focalLength(focal_length)
+Camera::Camera(const glm::vec3& origin, float vfov, float aspect, float aperture, float focalLength)
+	: m_position(origin), m_vfov(vfov), m_aspect(aspect), m_aperture(aperture), m_focalLength(focalLength)
 {
 	UpdateUVW();
 }
@@ -19,11 +19,6 @@ void Camera::UVWFrame(glm::vec3& U, glm::vec3& V, glm::vec3& W)
 	U = m_u;
 	V = m_v;
 	W = m_w;
-}
-
-void Camera::SetForward(glm::vec3 direction)
-{
-	m_forward = normalize(direction);
 }
 
 void Camera::UpdateUVW()
