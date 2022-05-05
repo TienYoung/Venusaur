@@ -1,5 +1,7 @@
 #pragma once
 
+#include "material.h"
+
 class Sphere
 {
 public:
@@ -8,11 +10,11 @@ public:
 	{
 	}
 
-	inline const float3& GetCenter() const { return make_float3(m_center.x, m_center.y, m_center.z); }
+	inline float3 GetCenter() const { return make_float3(m_center.x, m_center.y, m_center.z); }
 	inline const float GetRadius() const { return m_radius; }
 	inline const Material& GetMaterial() const { return m_material; }
 
-	inline const OptixAabb& GetAABB() const
+	inline OptixAabb GetAABB() const
 	{
 		float radius = fabsf(m_radius);
 		return {
@@ -24,6 +26,9 @@ public:
 			m_center.z + m_radius
 		};
 	}
+
+	inline void SetMaterial(const Material& material) { m_material = material; }
+
 private:
 	glm::vec3 m_center;
 	float m_radius;

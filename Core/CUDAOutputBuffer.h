@@ -128,7 +128,7 @@ CUDAOutputBuffer<PIXEL_FORMAT>::CUDAOutputBuffer( CUDAOutputBufferType type, int
         CUDA_CHECK( cudaDeviceGetAttribute( &is_display_device, cudaDevAttrKernelExecTimeout, current_device ) );
         if( !is_display_device )
         {
-            throw sutil::Exception(
+            throw Exception(
                     "GL interop is only available on display device, please use display device for optimal "
                     "performance.  Alternatively you can disable GL interop with --no-gl-interop and run with "
                     "degraded performance."
@@ -160,7 +160,6 @@ CUDAOutputBuffer<PIXEL_FORMAT>::~CUDAOutputBuffer()
 
         if( m_pbo != 0u )
         {
-            GL_CHECK( glBindBuffer( GL_ARRAY_BUFFER, 0 ) );
             GL_CHECK( glDeleteBuffers( 1, &m_pbo ) );
         }
     }
@@ -199,10 +198,8 @@ void CUDAOutputBuffer<PIXEL_FORMAT>::resize( int32_t width, int32_t height )
     if( m_type == CUDAOutputBufferType::GL_INTEROP || m_type == CUDAOutputBufferType::CUDA_P2P )
     {
         // GL buffer gets resized below
-        GL_CHECK( glGenBuffers( 1, &m_pbo ) );
-        GL_CHECK( glBindBuffer( GL_ARRAY_BUFFER, m_pbo ) );
-        GL_CHECK( glBufferData( GL_ARRAY_BUFFER, sizeof(PIXEL_FORMAT)*m_width*m_height, nullptr, GL_STREAM_DRAW ) );
-        GL_CHECK( glBindBuffer( GL_ARRAY_BUFFER, 0u ) );
+        GL_CHECK( glCreateBuffers( 1, &m_pbo ) );
+        GL_CHECK( glNamedBufferData( m_pbo, sizeof(PIXEL_FORMAT)*m_width*m_height, nullptr, GL_STREAM_DRAW ) );
 
         CUDA_CHECK( cudaGraphicsGLRegisterBuffer(
                     &m_cuda_gfx_resource,
@@ -228,9 +225,7 @@ void CUDAOutputBuffer<PIXEL_FORMAT>::resize( int32_t width, int32_t height )
 
     if( m_type != CUDAOutputBufferType::GL_INTEROP && m_type != CUDAOutputBufferType::CUDA_P2P && m_pbo != 0u )
     {
-        GL_CHECK( glBindBuffer( GL_ARRAY_BUFFER, m_pbo ) );
-        GL_CHECK( glBufferData( GL_ARRAY_BUFFER, sizeof(PIXEL_FORMAT)*m_width*m_height, nullptr, GL_STREAM_DRAW ) );
-        GL_CHECK( glBindBuffer( GL_ARRAY_BUFFER, 0u ) );
+        GL_CHECK(glNamedBufferData( m_pbo, sizeof(PIXEL_FORMAT)*m_width*m_height, nullptr, GL_STREAM_DRAW ) );
     }
 
     if( !m_host_pixels.empty() )
@@ -290,7 +285,7 @@ template <typename PIXEL_FORMAT>
 GLuint CUDAOutputBuffer<PIXEL_FORMAT>::getPBO()
 {
     if( m_pbo == 0u )
-        GL_CHECK( glGenBuffers( 1, &m_pbo ) );
+        GL_CHECK( glCreateBuffers( 1, &m_pbo ) );
 
     const size_t buffer_size = m_width*m_height*sizeof(PIXEL_FORMAT);
 
@@ -308,14 +303,12 @@ GLuint CUDAOutputBuffer<PIXEL_FORMAT>::getPBO()
                     cudaMemcpyDeviceToHost
                     ) );
 
-        GL_CHECK( glBindBuffer( GL_ARRAY_BUFFER, m_pbo ) );
-        GL_CHECK( glBufferData(
-                    GL_ARRAY_BUFFER,
+        GL_CHECK( glNamedBufferData(
+                    m_pbo,
                     buffer_size,
                     static_cast<void*>( m_host_pixels.data() ),
                     GL_STREAM_DRAW
                     ) );
-        GL_CHECK( glBindBuffer( GL_ARRAY_BUFFER, 0 ) );
     }
     else if( m_type == CUDAOutputBufferType::GL_INTEROP  )
     {
@@ -334,14 +327,12 @@ GLuint CUDAOutputBuffer<PIXEL_FORMAT>::getPBO()
     }
     else // m_type == CUDAOutputBufferType::ZERO_COPY
     {
-        GL_CHECK( glBindBuffer( GL_ARRAY_BUFFER, m_pbo ) );
-        GL_CHECK( glBufferData(
-                    GL_ARRAY_BUFFER,
+        GL_CHECK( glNamedBufferData(
+                    m_pbo,
                     buffer_size,
                     static_cast<void*>( m_host_zcopy_pixels ),
                     GL_STREAM_DRAW
                     ) );
-        GL_CHECK( glBindBuffer( GL_ARRAY_BUFFER, 0 ) );
     }
 
     return m_pbo;
@@ -350,7 +341,6 @@ GLuint CUDAOutputBuffer<PIXEL_FORMAT>::getPBO()
 template <typename PIXEL_FORMAT>
 void CUDAOutputBuffer<PIXEL_FORMAT>::deletePBO()
 {
-    GL_CHECK( glBindBuffer( GL_ARRAY_BUFFER, 0 ) );
     GL_CHECK( glDeleteBuffers( 1, &m_pbo ) );
     m_pbo = 0;
 }

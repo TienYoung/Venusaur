@@ -1,8 +1,50 @@
 #include <optix.h>
 
+#include "vec_math.h"
 #include "random.cuh"
 
 #include "RayTracer.h"
+
+bool __forceinline__ __device__ near_zero(const float3& e)
+{
+	// Return true if the vector is close to zero in all dimensions.
+	const auto s = 1e-8;
+	return (fabs(e.x) < s) && (fabs(e.y) < s) && (fabs(e.z) < s);
+}
+
+
+__forceinline__ __device__ float3 toSRGB(const float3& c)
+{
+	float  invGamma = 1.0f / 2.4f;
+	float3 powed = make_float3(powf(c.x, invGamma), powf(c.y, invGamma), powf(c.z, invGamma));
+	return make_float3(
+		c.x < 0.0031308f ? 12.92f * c.x : 1.055f * powed.x - 0.055f,
+		c.y < 0.0031308f ? 12.92f * c.y : 1.055f * powed.y - 0.055f,
+		c.z < 0.0031308f ? 12.92f * c.z : 1.055f * powed.z - 0.055f);
+}
+
+//__forceinline__ __device__ float dequantizeUnsigned8Bits( const unsigned char i )
+//{
+//    enum { N = (1 << 8) - 1 };
+//    return min((float)i / (float)N), 1.f)
+//}
+__forceinline__ __device__ unsigned char quantizeUnsigned8Bits(float x)
+{
+	x = clamp(x, 0.0f, 1.0f);
+	enum { N = (1 << 8) - 1, Np1 = (1 << 8) };
+	return (unsigned char)min((unsigned int)(x * (float)Np1), (unsigned int)N);
+}
+
+__forceinline__ __device__ uchar4 make_color(const float3& c)
+{
+	// first apply gamma, then convert to unsigned char
+	float3 srgb = toSRGB(clamp(c, 0.0f, 1.0f));
+	return make_uchar4(quantizeUnsigned8Bits(srgb.x), quantizeUnsigned8Bits(srgb.y), quantizeUnsigned8Bits(srgb.z), 255u);
+}
+__forceinline__ __device__ uchar4 make_color(const float4& c)
+{
+	return make_color(make_float3(c.x, c.y, c.z));
+}
 
 extern "C" 
 {
@@ -109,27 +151,27 @@ static __forceinline__ __device__ float3 random_in_unit_disk(unsigned int& seed)
 static __forceinline__ __device__ void get_ray(float s, float t, float3& origin, float3& direction, unsigned int& seed)
 {
 	RayGenData* rtData = reinterpret_cast<RayGenData*>(optixGetSbtDataPointer());
-	float3 rd = rtData->lens_radius * random_in_unit_disk(seed);
-	float3 u = normalize(rtData->u);
-	float3 v = normalize(rtData->v);
+	float3 rd = params.lens_radius * random_in_unit_disk(seed);
+	float3 u = normalize(params.u);
+	float3 v = normalize(params.v);
 	float3 offset = u * rd.x + v * rd.y;
 
-	origin = rtData->origin + offset;
-	direction = rtData->w + s * rtData->u * 0.5 + t * rtData->v * 0.5 - offset;
+	origin = params.origin + offset;
+	direction = params.w + s * params.u * 0.5 + t * params.v * 0.5 - offset;
 }
 
 extern "C" __global__ void __raygen__rg()
 {
     uint3 launch_index = optixGetLaunchIndex();
-	const unsigned int image_index = launch_index.y * params.image_width + launch_index.x;;
+	const unsigned int image_index = launch_index.y * params.width + launch_index.x;;
 
 	float3 pixel_color = make_float3(0.0f);
 	unsigned int seed = tea<4>(image_index, 0);
 	for (int s = 0; s < params.samples_per_pixel; ++s)
 	{
 		const int max_depth = 4;
-		auto u = 2 * float(launch_index.x + random_float(seed)) / (params.image_width - 1) - 1;
-		auto v = 2 * float(launch_index.y + random_float(seed)) / (params.image_height - 1) - 1;
+		auto u = 2 * float(launch_index.x + random_float(seed)) / (params.width - 1) - 1;
+		auto v = 2 * float(launch_index.y + random_float(seed)) / (params.height - 1) - 1;
 		float3 origin;
 		float3 direction;
 		get_ray(u, v, origin, direction, seed);
@@ -161,7 +203,7 @@ extern "C" __global__ void __raygen__rg()
 		pixel_color += prd.attenuation;
 	}
 
-    params.image[launch_index.y * params.image_width + launch_index.x] = make_float4(pixel_color / params.samples_per_pixel, 1.0f);
+    params.image[launch_index.y * params.width + launch_index.x] = make_color(pixel_color / params.samples_per_pixel);
 }
 
 static __forceinline__ __device__ bool set_face_normal(const float3& direction, float3& outward_normal)
