@@ -34,7 +34,19 @@ public:
 
 	void Draw(Camera& camera, CUDAOutputBuffer<uchar4>& outputBuffer)
 	{
+		if (camera.Changed())
+		{
+			CUDA_CHECK(cudaMalloc(
+				reinterpret_cast<void**>(&m_state.params.accum),
+				outputBuffer.width() * outputBuffer.height() * sizeof(float4)
+			));
+
+			m_state.params.subframe_index = 0u;
+		}
+
 		outputBuffer.setStream(m_state.stream);
+		
+
 		m_state.params.image = outputBuffer.map();
 		m_state.params.width = outputBuffer.width();
 		m_state.params.height = outputBuffer.height();
@@ -71,6 +83,7 @@ public:
 		CUDA_CHECK(cudaFree(reinterpret_cast<void*>(m_state.sbt.missRecordBase)));
 		CUDA_CHECK(cudaFree(reinterpret_cast<void*>(m_state.sbt.hitgroupRecordBase)));
 		CUDA_CHECK(cudaFree(reinterpret_cast<void*>(m_state.d_gas_output_buffer)));
+		CUDA_CHECK(cudaFree(reinterpret_cast<void*>(m_state.params.accum)));
 		CUDA_CHECK(cudaFree(reinterpret_cast<void*>(m_state.d_params)));
 
 		OPTIX_CHECK(optixPipelineDestroy(m_state.pipeline));

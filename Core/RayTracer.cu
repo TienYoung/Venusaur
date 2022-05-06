@@ -166,7 +166,7 @@ extern "C" __global__ void __raygen__rg()
 	const unsigned int image_index = launch_index.y * params.width + launch_index.x;;
 
 	float3 pixel_color = make_float3(0.0f);
-	unsigned int seed = tea<4>(image_index, 0);
+	unsigned int seed = tea<4>(image_index, params.subframe_index);
 	for (int s = 0; s < params.samples_per_pixel; ++s)
 	{
 		const int max_depth = 4;
@@ -203,7 +203,17 @@ extern "C" __global__ void __raygen__rg()
 		pixel_color += prd.attenuation;
 	}
 
-    params.image[launch_index.y * params.width + launch_index.x] = make_color(pixel_color / params.samples_per_pixel);
+	float3 accum_color = pixel_color / static_cast<float>(params.samples_per_pixel);
+
+	if (params.subframe_index > 0)
+	{
+		const float                 a = 1.0f / static_cast<float>(params.subframe_index + 1);
+		const float3 accum_color_prev = make_float3(params.accum[image_index]);
+		accum_color = lerp(accum_color_prev, accum_color, a);
+	}
+
+    params.accum[image_index] = make_float4(accum_color, 1.0f);
+    params.image[image_index] = make_color(accum_color);
 }
 
 static __forceinline__ __device__ bool set_face_normal(const float3& direction, float3& outward_normal)

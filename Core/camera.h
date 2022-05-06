@@ -23,30 +23,65 @@ public:
 
 	inline void SetForward(glm::vec3 direction) { m_forward = normalize(direction); }
 
-	inline float* GetFocalLengthRef() { return &m_focalLength; }
+	inline float GetFocalLength() { return m_focalLength; }
+	inline void SetFocalLength(float length) 
+	{ 
+		if (m_focalLength != length)
+		{
+			m_focalLength = length; 
+			m_changed = true;
+		}
+	}
 
-	inline void MoveForward(float speed) { m_position += m_forward * speed; }
+	inline void MoveForward(float speed)
+	{
+		m_position += m_forward * speed;
 
-	inline void MoveRight(float speed) { m_position += normalize(m_u) * speed; }
+		m_changed = true;
+	}
 
-	inline void MoveUp(float speed) { m_position += normalize(m_v) * speed; }
+	inline void MoveRight(float speed) {
+		m_position += normalize(m_u) * speed; 
+
+		m_changed = true;
+	}
+
+	inline void MoveUp(float speed)
+	{
+		m_position += normalize(m_v) * speed;
+		
+		m_changed = true;
+	}
 
 	void Pitch(float speed)
 	{
 		glm::quat rotation = glm::rotate(glm::quat(1, 0, 0, 0), glm::radians(speed), m_u);
 		m_forward = normalize(m_forward * rotation);
+
+		m_changed = true;
 	}
 
 	void Yaw(float speed)
 	{
 		glm::quat rotation = glm::rotate(glm::quat(1, 0, 0, 0), glm::radians(speed), m_v);
 		m_forward = normalize(m_forward * rotation);
+
+		m_changed = true;
 	}
 
 	void Roll(float speed)
 	{
 		glm::quat rotation = glm::rotate(glm::quat(1, 0, 0, 0), glm::radians(speed), m_w);
 		m_forward = normalize(m_forward * rotation);
+
+		m_changed = true;
+	}
+
+	bool Changed()
+	{
+		bool changed = m_changed;
+		m_changed = false;
+		return changed;
 	}
 
 private:
@@ -60,4 +95,6 @@ private:
 	glm::vec3 m_u, m_v, m_w;
 
 	void UpdateUVW();
+
+	bool m_changed = true;
 };

@@ -3,6 +3,7 @@
 struct Params
 {
 	uchar4* image;
+	float4* accum;
 	unsigned int width;
 	unsigned int height;
 	unsigned int samples_per_pixel;
