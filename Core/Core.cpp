@@ -1,7 +1,6 @@
-#include "Renderer.h"
-
 #include <cassert>
 #include <chrono>
+#include <filesystem>
 
 #include <GL/gl3w.h>
 #include <GLFW/glfw3.h>
@@ -10,10 +9,26 @@
 #include "imgui/imgui_impl_glfw.h"
 #include "imgui/imgui_impl_opengl3.h"
 
+#include "Renderer.h"
+
 static void ErrorCallback(int error, const char* description)
 {
 	std::cerr << "GLFW Error " << error << ": " << description << std::endl;
 }
+
+
+// Image
+glm::vec3 lookfrom{ 13, 2, 3 };
+glm::vec3 lookat{ 0, 0, 0 };
+glm::vec3 vup{ 0, 1, 0 };
+auto dist_to_focus = 10.0f;
+auto aperture = 0.1f;
+const auto aspect_ratio = 3.0f / 2.0f;
+const int image_width = 1200;
+const int image_height = static_cast<int>(image_width / aspect_ratio);
+Camera camera(lookfrom, 20.0f, aspect_ratio, aperture, dist_to_focus);
+Scene scene;
+Renderer optix_renderer;
 
 static void KeyCallback(GLFWwindow* window, int32_t key, int32_t /*scancode*/, int32_t action, int32_t /*mods*/)
 {
@@ -31,34 +46,34 @@ static void KeyCallback(GLFWwindow* window, int32_t key, int32_t /*scancode*/, i
 		switch (key)
 		{
 		case GLFW_KEY_W:
-			cam->move_forward(0.1f);
+			camera.MoveForward(0.1f);
 			break;
 		case GLFW_KEY_S:
-			cam->move_forward(-0.1f);
+			camera.MoveForward(-0.1f);
 			break;
 		case GLFW_KEY_D:
-			cam->move_right(0.1f);
+			camera.MoveRight(0.1f);
 			break;
 		case GLFW_KEY_A:
-			cam->move_right(-0.1f);
+			camera.MoveRight(-0.1f);
 			break;
 		case GLFW_KEY_Q:
-			cam->move_up(-0.1f);
+			camera.MoveUp(-0.1f);
 			break;
 		case GLFW_KEY_E:
-			cam->move_up(0.1f);
+			camera.MoveUp(0.1f);
 			break;
 		case GLFW_KEY_UP:
-			cam->pitch(-1.0f);
+			camera.Pitch(1.0f);
 			break;
 		case GLFW_KEY_DOWN:
-			cam->pitch(1.0f);
+			camera.Pitch(-1.0f);
 			break;
 		case GLFW_KEY_RIGHT:
-			cam->yaw(1.0f);
+			camera.Yaw(1.0f);
 			break;
 		case GLFW_KEY_LEFT:
-			cam->yaw(-1.0f);
+			camera.Yaw(-1.0f);
 			break;
 		default:
 			break;
@@ -66,9 +81,10 @@ static void KeyCallback(GLFWwindow* window, int32_t key, int32_t /*scancode*/, i
 	}
 }
 
-static void ResizeCallback(GLFWwindow* window, int width, int height)
+static void WindowResizeCallback(GLFWwindow* window, int width, int height)
 {
-	glViewport(0, 0, width, height);
+	auto outputBuffer = static_cast<CUDAOutputBuffer<uchar4>*>(glfwGetWindowUserPointer(window));
+	outputBuffer->resize(width, height);
 }
 
 void message_callback(GLenum source, GLenum type, GLuint id, GLenum severity, GLsizei length, GLchar const* message, void const* user_param)
@@ -141,12 +157,99 @@ void main()
 }
 )";
 
+
+GLuint createGLShader(const std::string& source, GLuint shader_type)
+{
+	GLuint shader = glCreateShader(shader_type);
+	{
+		const GLchar* source_data = reinterpret_cast<const GLchar*>(source.data());
+		glShaderSource(shader, 1, &source_data, nullptr);
+		glCompileShader(shader);
+
+		GLint is_compiled = 0;
+		glGetShaderiv(shader, GL_COMPILE_STATUS, &is_compiled);
+		if (is_compiled == GL_FALSE)
+		{
+			GLint max_length = 0;
+			glGetShaderiv(shader, GL_INFO_LOG_LENGTH, &max_length);
+
+			std::string info_log(max_length, '\0');
+			GLchar* info_log_data = reinterpret_cast<GLchar*>(&info_log[0]);
+			glGetShaderInfoLog(shader, max_length, nullptr, info_log_data);
+
+			glDeleteShader(shader);
+			std::cerr << "Compilation of shader failed: " << info_log << std::endl;
+
+			return 0;
+		}
+	}
+
+
+	return shader;
+}
+
+GLuint createGLProgram(
+	const std::string& vert_source,
+	const std::string& frag_source
+)
+{
+	GLuint vert_shader = createGLShader(vert_source, GL_VERTEX_SHADER);
+	if (vert_shader == 0)
+		return 0;
+
+	GLuint frag_shader = createGLShader(frag_source, GL_FRAGMENT_SHADER);
+	if (frag_shader == 0)
+	{
+		glDeleteShader(vert_shader);
+		return 0;
+	}
+
+	GLuint program = glCreateProgram();
+	glAttachShader(program, vert_shader);
+	glAttachShader(program, frag_shader);
+	glLinkProgram(program);
+
+	GLint is_linked = 0;
+	glGetProgramiv(program, GL_LINK_STATUS, &is_linked);
+	if (is_linked == GL_FALSE)
+	{
+		GLint max_length = 0;
+		glGetProgramiv(program, GL_INFO_LOG_LENGTH, &max_length);
+
+		std::string info_log(max_length, '\0');
+		GLchar* info_log_data = reinterpret_cast<GLchar*>(&info_log[0]);
+		glGetProgramInfoLog(program, max_length, nullptr, info_log_data);
+		std::cerr << "Linking of program failed: " << info_log << std::endl;
+
+		glDeleteProgram(program);
+		glDeleteShader(vert_shader);
+		glDeleteShader(frag_shader);
+
+		return 0;
+	}
+
+	glDetachShader(program, vert_shader);
+	glDetachShader(program, frag_shader);
+
+
+	return program;
+}
+
+
 int main(int argc, char* argv[])
 {
-
+	std::filesystem::path ptxPath(R"(E:\GitHub\Venusaur\Binaries\x64\Debug\RayTracer.ptx)");
+	std::fstream ptxFile(ptxPath);
+	std::string ptxSource(std::istreambuf_iterator<char>(ptxFile), {});
 
 	// Init Optix.
-	Init();
+	optix_renderer.Init(scene, ptxSource);
+
+	int current_device, is_display_device;
+	CUDA_CHECK(cudaGetDevice(&current_device));
+	CUDA_CHECK(cudaDeviceGetAttribute(&is_display_device, cudaDevAttrKernelExecTimeout, current_device));
+	CUDAOutputBufferType type = is_display_device ? CUDAOutputBufferType::GL_INTEROP : CUDAOutputBufferType::CUDA_DEVICE;
+	CUDAOutputBuffer<uchar4> outputBuffer(type, image_width, image_height);
 
 
 	// Init GLFW.
@@ -168,9 +271,9 @@ int main(int argc, char* argv[])
 	}
 
 	glfwSetWindowAspectRatio(window, image_width, image_height);
-	glfwSetFramebufferSizeCallback(window, ResizeCallback);
+	glfwSetWindowSizeCallback(window, WindowResizeCallback);
 	glfwSetKeyCallback(window, KeyCallback);
-
+	glfwSetWindowUserPointer(window, &outputBuffer);
 	glfwMakeContextCurrent(window);
 	
 	// Init gl3w.
@@ -228,10 +331,6 @@ int main(int argc, char* argv[])
 	(glVertexArrayVertexBuffer(vao, 0, vbo, 0, 3 * sizeof(GLfloat)));
 	glVertexArrayElementBuffer(vao, ebo);
 
-	// PBO
-	GLuint pbo;
-	(glCreateBuffers(1, &pbo));
-
 	GLuint program = createGLProgram(s_vert_source, s_frag_source);
 
 	// Texture
@@ -245,11 +344,15 @@ int main(int argc, char* argv[])
 	(glTextureParameteri(renderTex, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE));
 	(glTextureParameteri(renderTex, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE));
 
-	(glTextureStorage2D(renderTex, 1, GL_RGBA8_SNORM, image_width, image_height));
-
+	(glTextureStorage2D(renderTex, 1, GL_RGBA8, image_width, image_height));
 
 	auto last_time = std::chrono::steady_clock::now();
 	auto current_time = last_time;
+
+	auto end = std::chrono::steady_clock::now();
+	auto start = end;
+
+	camera.SetForward(lookat - lookfrom);
 
 	// Rendering.
 	while (!glfwWindowShouldClose(window))
@@ -262,19 +365,36 @@ int main(int argc, char* argv[])
 		ImGui_ImplGlfw_NewFrame();
 		ImGui::NewFrame();
 
-		ImGui::Begin("Text", nullptr, ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_NoInputs);
+		ImGui::Begin("Debugging", nullptr);
 		std::chrono::duration<double> seconds = current_time - last_time;
+		std::chrono::duration<double> optix_seconds = end - start;
+		std::chrono::duration<double> openGL_seconds = current_time - end;
 		double frame_time = seconds.count();
 		double fps = 1.0 / frame_time;
 		ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.0f, 0.6f, 0.1f, 1.0f));
-		ImGui::Text("Frame Time:%.2fms", frame_time * 1000);
-		ImGui::Text("FPS:%.1f", fps);
+		ImGui::Text("Frame Time:");
+		ImGui::Indent(20.0f);
+		ImGui::Text("OpenGL:\t%.2fms", openGL_seconds.count() * 1000);
+		ImGui::Text("Optix:\t%.2fms", optix_seconds.count() * 1000);
+		ImGui::Unindent(20.0f);
+		ImGui::Text("FPS:%.1f\t%2fms", fps, frame_time * 1000);
 		ImGui::PopStyleColor();
+
+		ImGui::SliderFloat("Focal Length", camera.GetFocalLengthRef(), 0.0f, 20.0f);
 		ImGui::End();
 
 		ImGui::Render();
+
+		int width, height;
+		glfwGetFramebufferSize(window, &width, &height);
+
+		start = std::chrono::steady_clock::now();
+		optix_renderer.Draw(camera, outputBuffer);
+		end = std::chrono::steady_clock::now();
+		GLuint pbo = outputBuffer.getPBO();
+
 		(glBindFramebuffer(GL_FRAMEBUFFER, 0));
-		//(glViewport(0, 0, image_width, image_height));
+		(glViewport(0, 0, width, height));
 
 		const GLfloat clearColor[] = { 0.3f, 0.2f, 0.6f, 1.0f };
 		const GLfloat* clearDepth = 0;
@@ -283,23 +403,19 @@ int main(int argc, char* argv[])
 
 		(glUseProgram(program));
 
-		UpdateHitGroupData();
-		auto dataPtr = Launch(image_width, image_height, 0);
-		std::vector<float4> data(dataPtr, dataPtr + image_width * image_height);
-		(glNamedBufferData(pbo, sizeof(float4) * image_width * image_height, (void*)data.data(), GL_STATIC_DRAW));
-
+		// Equivalent of glActiveTexture + glBindTexture.
 		glBindTextureUnit(0, renderTex);
 
 		glBindBuffer(GL_PIXEL_UNPACK_BUFFER, pbo);
 		glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
 
-		(glTextureSubImage2D(renderTex, 0, 0, 0, image_width, image_height, GL_RGBA, GL_FLOAT, nullptr));
+		(glTextureSubImage2D(renderTex, 0, 0, 0, outputBuffer.width(), outputBuffer.height(), GL_RGBA, GL_UNSIGNED_BYTE, nullptr));
 
 		glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
 
 		glUniform1i(texLoc, 0);
 
-		glEnable(GL_FRAMEBUFFER_SRGB);
+		//glEnable(GL_FRAMEBUFFER_SRGB);
 
 		glBindVertexArray(vao);
 		glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, nullptr);
@@ -311,12 +427,11 @@ int main(int argc, char* argv[])
 		last_time = current_time;
 	}
 
+	optix_renderer.Cleanup();
 
 	// Cleanup.
 	glfwDestroyWindow(window);
 	glfwTerminate();
-
-	Cleanup();
 
 	return 0;
 }

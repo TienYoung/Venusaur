@@ -1,26 +1,36 @@
 #pragma once
 
-struct SphereHitGroupData
+#include "material.h"
+
+class Sphere
 {
-	float3 center;
-	float radius;
-	material mat;
+public:
+	Sphere(const glm::vec3& center, float radius, const Material& material)
+		: m_center(center), m_radius(radius), m_material(material)
+	{
+	}
+
+	inline float3 GetCenter() const { return make_float3(m_center.x, m_center.y, m_center.z); }
+	inline const float GetRadius() const { return m_radius; }
+	inline const Material& GetMaterial() const { return m_material; }
+
+	inline OptixAabb GetAABB() const
+	{
+		float radius = fabsf(m_radius);
+		return {
+			m_center.x - m_radius,
+			m_center.y - m_radius,
+			m_center.z - m_radius,
+			m_center.x + m_radius,
+			m_center.y + m_radius,
+			m_center.z + m_radius
+		};
+	}
+
+	inline void SetMaterial(const Material& material) { m_material = material; }
+
+private:
+	glm::vec3 m_center;
+	float m_radius;
+	Material m_material;
 };
-
-static __host__ SphereHitGroupData make_sphere( const float3& center, float radius, const material& mat)
-{
-	return { center, radius, mat };
-}
-
-static __host__ OptixAabb gen_aabb(const SphereHitGroupData& sphere)
-{
-	float radius = fabsf(sphere.radius);
-	return { 
-		sphere.center.x - radius, 
-		sphere.center.y - radius,
-		sphere.center.z - radius, 
-		sphere.center.x + radius, 
-		sphere.center.y + radius, 
-		sphere.center.z + radius 
-	};
-}

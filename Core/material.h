@@ -1,37 +1,36 @@
 #pragma once
 
-struct material
+#include "vec_math.h"
+#include <glm/glm.hpp>
+
+class Material
 {
-	union
+public:
+	enum Type
 	{
-		struct
-		{
-			float3 albedo;
-			float fuzz;
-		};
-		float ir;
+		Lambertian = 0,
+		Metal,
+		Dielectric
 	};
+
+	Material(Type type, const glm::vec3& albedo = glm::vec3(0.0f), float fuzz = 0, float ir = 0)
+		: m_type(type), m_albedo(albedo), m_fuzz(fuzz), m_ir(ir)
+	{
+	}
+
+
+
+	inline const Type GetType() const { return m_type; }
+	inline float3 GetAlbedo() const { return make_float3(m_albedo.r, m_albedo.g, m_albedo.b); }
+	inline const float GetFuzz() const { return m_fuzz; }
+	inline const float GetIR() const { return m_ir; }
+
+private:
+	Type m_type;
+	glm::vec3 m_albedo;
+	float m_fuzz;
+	float m_ir;
 };
 
-static __host__ material make_lambertian(const float3& albedo)
-{
-	return material{ albedo };
-}
 
-static __host__ material make_metal(const float3& albedo, float fuzz)
-{
-	return material{ albedo, fuzz };
-}
-
-static __host__ material make_dielectric(float ir)
-{
-	return material{ ir };
-}
-
-bool __forceinline__ __device__ near_zero(const float3& e) 
-{
-	// Return true if the vector is close to zero in all dimensions.
-	const auto s = 1e-8;
-	return (fabs(e.x) < s) && (fabs(e.y) < s) && (fabs(e.z) < s);
-}
 

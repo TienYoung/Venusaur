@@ -45,6 +45,9 @@
     <ClCompile Include="imgui\imgui_impl_glfw.cpp">
       <Filter>imgui</Filter>
     </ClCompile>
+    <ClCompile Include="Camera.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Exception.h">
@@ -53,7 +56,7 @@
     <ClInclude Include="Renderer.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="Hello.h">
+    <ClInclude Include="RayTracer.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="Preprocessor.h">
@@ -62,22 +65,16 @@
     <ClInclude Include="vec_math.h">
       <Filter>sutil</Filter>
     </ClInclude>
-    <ClInclude Include="camera.h">
+    <ClInclude Include="Camera.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="random.cuh">
       <Filter>CUDA</Filter>
     </ClInclude>
-    <ClInclude Include="material.h">
+    <ClInclude Include="Material.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="rtweekend.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="sphere.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="hitable_list.h">
+    <ClInclude Include="Sphere.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="imgui\imconfig.h">
@@ -107,9 +104,15 @@
     <ClInclude Include="imgui\imgui_impl_glfw.h">
       <Filter>imgui</Filter>
     </ClInclude>
+    <ClInclude Include="Scene.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="CUDAOutputBuffer.h">
+      <Filter>sutil</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <CudaCompile Include="Hello.cu">
+    <CudaCompile Include="RayTracer.cu">
       <Filter>CUDA</Filter>
     </CudaCompile>
   </ItemGroup>
