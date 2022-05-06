@@ -64,10 +64,10 @@ static void KeyCallback(GLFWwindow* window, int32_t key, int32_t /*scancode*/, i
 			camera.MoveUp(0.1f);
 			break;
 		case GLFW_KEY_UP:
-			camera.Pitch(1.0f);
+			camera.Pitch(-1.0f);
 			break;
 		case GLFW_KEY_DOWN:
-			camera.Pitch(-1.0f);
+			camera.Pitch(1.0f);
 			break;
 		case GLFW_KEY_RIGHT:
 			camera.Yaw(1.0f);
@@ -380,7 +380,9 @@ int main(int argc, char* argv[])
 		ImGui::Text("FPS:%.1f\t%2fms", fps, frame_time * 1000);
 		ImGui::PopStyleColor();
 
-		ImGui::SliderFloat("Focal Length", camera.GetFocalLengthRef(), 0.0f, 20.0f);
+		float length = camera.GetFocalLength();
+		ImGui::SliderFloat("Focal Length", &length, 0.0f, 20.0f);
+		camera.SetFocalLength(length);
 		ImGui::End();
 
 		ImGui::Render();
