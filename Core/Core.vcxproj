@@ -140,6 +140,10 @@
     <ClInclude Include="Renderer.h" />
     <ClInclude Include="vec_math.h" />
   </ItemGroup>
+  <ItemGroup>
+    <None Include="CornellBox\scene.bin" />
+    <None Include="CornellBox\scene.gltf" />
+  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
     <Import Project="$(VCTargetsPath)\BuildCustomizations\CUDA 11.6.targets" />

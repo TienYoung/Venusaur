@@ -116,4 +116,12 @@
       <Filter>CUDA</Filter>
     </CudaCompile>
   </ItemGroup>
+  <ItemGroup>
+    <None Include="CornellBox\scene.bin">
+      <Filter>Resource Files</Filter>
+    </None>
+    <None Include="CornellBox\scene.gltf">
+      <Filter>Resource Files</Filter>
+    </None>
+  </ItemGroup>
 </Project>

@@ -11,6 +11,8 @@
 
 #include "Renderer.h"
 
+#define ENABLE_OPTIX_RENDERER 0
+
 static void ErrorCallback(int error, const char* description)
 {
 	std::cerr << "GLFW Error " << error << ": " << description << std::endl;
@@ -84,7 +86,10 @@ static void KeyCallback(GLFWwindow* window, int32_t key, int32_t /*scancode*/, i
 static void WindowResizeCallback(GLFWwindow* window, int width, int height)
 {
 	auto outputBuffer = static_cast<CUDAOutputBuffer<uchar4>*>(glfwGetWindowUserPointer(window));
-	outputBuffer->resize(width, height);
+	if (outputBuffer != NULL)
+	{
+		outputBuffer->resize(width, height);
+	}
 }
 
 void message_callback(GLenum source, GLenum type, GLuint id, GLenum severity, GLsizei length, GLchar const* message, void const* user_param)
@@ -238,20 +243,6 @@ GLuint createGLProgram(
 
 int main(int argc, char* argv[])
 {
-	std::filesystem::path ptxPath(R"(E:\GitHub\Venusaur\Binaries\x64\Debug\RayTracer.ptx)");
-	std::fstream ptxFile(ptxPath);
-	std::string ptxSource(std::istreambuf_iterator<char>(ptxFile), {});
-
-	// Init Optix.
-	optix_renderer.Init(scene, ptxSource);
-
-	int current_device, is_display_device;
-	CUDA_CHECK(cudaGetDevice(&current_device));
-	CUDA_CHECK(cudaDeviceGetAttribute(&is_display_device, cudaDevAttrKernelExecTimeout, current_device));
-	CUDAOutputBufferType type = is_display_device ? CUDAOutputBufferType::GL_INTEROP : CUDAOutputBufferType::CUDA_DEVICE;
-	CUDAOutputBuffer<uchar4> outputBuffer(type, image_width, image_height);
-
-
 	// Init GLFW.
 	GLFWwindow* window = nullptr;
 	glfwSetErrorCallback(ErrorCallback);
@@ -270,10 +261,26 @@ int main(int argc, char* argv[])
 		return -1;
 	}
 
+#if ENABLE_OPTIX_RENDERER
+	std::filesystem::path ptxPath(R"(E:\GitHub\Venusaur\Binaries\x64\Debug\RayTracer.ptx)");
+	std::fstream ptxFile(ptxPath);
+	std::string ptxSource(std::istreambuf_iterator<char>(ptxFile), {});
+
+	// Init Optix.
+	optix_renderer.Init(scene, ptxSource);
+
+	int current_device, is_display_device;
+	CUDA_CHECK(cudaGetDevice(&current_device));
+	CUDA_CHECK(cudaDeviceGetAttribute(&is_display_device, cudaDevAttrKernelExecTimeout, current_device));
+	CUDAOutputBufferType type = is_display_device ? CUDAOutputBufferType::GL_INTEROP : CUDAOutputBufferType::CUDA_DEVICE;
+	CUDAOutputBuffer<uchar4> outputBuffer(type, image_width, image_height);
+
+	glfwSetWindowUserPointer(window, &outputBuffer);
+#endif // ENABLE_OPTIX_RENDERER
+
 	glfwSetWindowAspectRatio(window, image_width, image_height);
 	glfwSetWindowSizeCallback(window, WindowResizeCallback);
 	glfwSetKeyCallback(window, KeyCallback);
-	glfwSetWindowUserPointer(window, &outputBuffer);
 	glfwMakeContextCurrent(window);
 	
 	// Init gl3w.
@@ -390,11 +397,6 @@ int main(int argc, char* argv[])
 		int width, height;
 		glfwGetFramebufferSize(window, &width, &height);
 
-		start = std::chrono::steady_clock::now();
-		optix_renderer.Draw(camera, outputBuffer);
-		end = std::chrono::steady_clock::now();
-		GLuint pbo = outputBuffer.getPBO();
-
 		(glBindFramebuffer(GL_FRAMEBUFFER, 0));
 		(glViewport(0, 0, width, height));
 
@@ -402,6 +404,13 @@ int main(int argc, char* argv[])
 		const GLfloat* clearDepth = 0;
 		(glClearNamedFramebufferfv(0, GL_COLOR, 0, clearColor));
 		//(glClearNamedFramebufferfv(0, GL_DEPTH, 0, clearDepth));
+
+		// Draw Optix ouput buffer.
+#if ENABLE_OPTIX_RENDERER
+		start = std::chrono::steady_clock::now();
+		optix_renderer.Draw(camera, outputBuffer);
+		end = std::chrono::steady_clock::now();
+		GLuint pbo = outputBuffer.getPBO();
 
 		(glUseProgram(program));
 
@@ -421,6 +430,7 @@ int main(int argc, char* argv[])
 
 		glBindVertexArray(vao);
 		glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, nullptr);
+#endif
 
 		ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData()); 
 
@@ -429,7 +439,9 @@ int main(int argc, char* argv[])
 		last_time = current_time;
 	}
 
+#if ENABLE_OPTIX_RENDERER
 	optix_renderer.Cleanup();
+#endif
 
 	// Cleanup.
 	glfwDestroyWindow(window);
