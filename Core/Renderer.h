@@ -25,7 +25,8 @@ public:
 	void Init(const Scene& scene, const std::string ptxSource)
 	{
 		CreateContext();
-		BuildAccelerationStructures(scene);
+		BuildGeometryAccelerationStructures(scene);
+		BuildInstanceAccelerationStructures(scene);
 		CreateModule(ptxSource);
 		CreateProgramGroups();
 		CreatePipeline();
@@ -60,7 +61,7 @@ public:
 		m_state.params.v = make_float3(v.x, v.y, v.z);
 		m_state.params.w = make_float3(w.x, w.y, w.z);
 		m_state.params.lens_radius = camera.GetLensRadius();
-		m_state.params.handle = m_state.gas_handle;
+		m_state.params.handle = m_state.ias_handle;
 
 		CUDA_CHECK(cudaStreamCreate(&m_state.stream));
 
@@ -114,6 +115,11 @@ private:
 
 		OptixTraversableHandle         gas_handle               = 0u;
 		CUdeviceptr                    d_gas_output_buffer      = 0u;
+		OptixTraversableHandle         motion_transform_handle  = 0u;
+		CUdeviceptr                    d_motion_transform       = 0u;
+
+		OptixTraversableHandle         ias_handle               = 0u;
+		CUdeviceptr                    d_ias_output_buffer      = 0u;
 		
 		OptixModule                    ptx_module               = nullptr;
 		OptixPipelineCompileOptions    pipeline_compile_options = {};
@@ -157,11 +163,11 @@ private:
 		m_state.context = context;
 	}
 
-	void BuildAccelerationStructures(const Scene& scene)
+	void BuildGeometryAccelerationStructures(const Scene& scene)
 	{
 		OptixAccelBuildOptions accel_options = {};
-		accel_options.buildFlags = OPTIX_BUILD_FLAG_ALLOW_COMPACTION;
-		accel_options.operation = OPTIX_BUILD_OPERATION_BUILD;
+		accel_options.buildFlags             = OPTIX_BUILD_FLAG_ALLOW_COMPACTION;
+		accel_options.operation              = OPTIX_BUILD_OPERATION_BUILD;
 
 		// AABB build input
 		const size_t aabbs_size_in_bytes = scene.m_aabbs.size() * sizeof(OptixAabb);
@@ -192,7 +198,7 @@ private:
 		unsigned int* aabb_input_flags = new unsigned int[scene.m_spheres.size()];
 		for (size_t i = 0; i < scene.m_spheres.size(); ++i)
 		{
-			aabb_input_flags[i] = OPTIX_GEOMETRY_FLAG_NONE;
+			aabb_input_flags[i] = OPTIX_GEOMETRY_FLAG_DISABLE_ANYHIT;
 		}
 		aabb_input.customPrimitiveArray.flags = aabb_input_flags;
 		aabb_input.customPrimitiveArray.numSbtRecords = static_cast<unsigned int>(scene.m_spheres.size());
@@ -252,6 +258,120 @@ private:
 		{
 			m_state.d_gas_output_buffer = d_buffer_temp_output_gas_and_compacted_size;
 		}
+
+		const float motion_matrix_keys[2][12] =
+		{
+			{
+				1.0f, 0.0f, 0.0f, 0.0f,
+				0.0f, 1.0f, 0.0f, 0.0f,
+				0.0f, 0.0f, 1.0f, 0.0f
+			},
+			{
+				1.0f, 0.0f, 0.0f, 0.0f,
+				0.0f, 1.0f, 0.0f, 1.0f,
+				0.0f, 0.0f, 1.0f, 0.0f
+			}
+		};
+
+		OptixMatrixMotionTransform motion_transform = {};
+		motion_transform.child                      = m_state.gas_handle;
+		motion_transform.motionOptions.numKeys      = 2;
+		motion_transform.motionOptions.timeBegin    = 0.0f;
+		motion_transform.motionOptions.timeEnd      = 1.0f;
+		motion_transform.motionOptions.flags        = OPTIX_MOTION_FLAG_NONE;
+		memcpy(motion_transform.transform, motion_matrix_keys, 2 * 12 * sizeof(float));
+
+		CUDA_CHECK(cudaMalloc(
+			reinterpret_cast<void**>(&m_state.d_motion_transform),
+			sizeof(OptixMatrixMotionTransform)
+		));
+
+		CUDA_CHECK(cudaMemcpy(
+			reinterpret_cast<void*>(m_state.d_motion_transform),
+			&motion_transform,
+			sizeof(OptixMatrixMotionTransform),
+			cudaMemcpyHostToDevice
+		));
+
+		OPTIX_CHECK(optixConvertPointerToTraversableHandle(
+			m_state.context,
+			m_state.d_motion_transform,
+			OPTIX_TRAVERSABLE_TYPE_MATRIX_MOTION_TRANSFORM,
+			&m_state.motion_transform_handle
+		));
+	}
+
+	void BuildInstanceAccelerationStructures(const Scene& scene)
+	{
+		float idenityTransform[12] = {1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0};
+		OptixInstance optix_instance     = {};
+		optix_instance.flags             = OPTIX_INSTANCE_FLAG_NONE;
+		optix_instance.instanceId        = 0;
+		optix_instance.sbtOffset         = 0;
+		optix_instance.visibilityMask    = 1;
+		optix_instance.traversableHandle = m_state.motion_transform_handle;
+		memcpy(optix_instance.transform, idenityTransform, sizeof(float) * 12);
+
+		CUdeviceptr  d_instances;
+		CUDA_CHECK(cudaMalloc(reinterpret_cast<void**>(&d_instances), sizeof(OptixInstance)));
+		CUDA_CHECK(cudaMemcpy(
+			reinterpret_cast<void*>(d_instances),
+			&optix_instance,
+			sizeof(OptixInstance),
+			cudaMemcpyHostToDevice
+		));
+
+		OptixBuildInput instance_input            = {};
+		instance_input.type                       = OPTIX_BUILD_INPUT_TYPE_INSTANCES;
+		instance_input.instanceArray.instances    = d_instances;
+		instance_input.instanceArray.numInstances = 1;
+
+		OptixAccelBuildOptions accel_options  = {};
+		accel_options.buildFlags              = OPTIX_BUILD_FLAG_NONE;
+		accel_options.operation               = OPTIX_BUILD_OPERATION_BUILD;
+
+		accel_options.motionOptions.numKeys   = 2;
+		accel_options.motionOptions.timeBegin = 0.0f;
+		accel_options.motionOptions.timeEnd   = 1.0f;
+		accel_options.motionOptions.flags     = OPTIX_MOTION_FLAG_NONE;
+
+		OptixAccelBufferSizes ias_buffer_sizes;
+		OPTIX_CHECK(optixAccelComputeMemoryUsage(
+			m_state.context,
+			&accel_options,
+			&instance_input,
+			1, // num build inputs
+			&ias_buffer_sizes
+		));
+
+		CUdeviceptr d_temp_buffer;
+		CUDA_CHECK(cudaMalloc(
+			reinterpret_cast<void**>(&d_temp_buffer),
+			ias_buffer_sizes.tempSizeInBytes
+		));
+		CUDA_CHECK(cudaMalloc(
+			reinterpret_cast<void**>(&m_state.d_ias_output_buffer),
+			ias_buffer_sizes.outputSizeInBytes
+		));
+
+		OPTIX_CHECK(optixAccelBuild(
+			m_state.context,
+			0,                  // CUDA stream
+			&accel_options,
+			&instance_input,
+			1,                  // num build inputs
+			d_temp_buffer,
+			ias_buffer_sizes.tempSizeInBytes,
+			m_state.d_ias_output_buffer,
+			ias_buffer_sizes.outputSizeInBytes,
+			&m_state.ias_handle,
+			nullptr,            // emitted property list
+			0                   // num emitted properties
+		));
+
+		CUDA_CHECK(cudaFree(reinterpret_cast<void*>(d_temp_buffer)));
+		CUDA_CHECK(cudaFree(reinterpret_cast<void*>(d_instances)));
+
 	}
 
 	void CreateModule(const std::string& ptxSource)
@@ -261,8 +381,8 @@ private:
 		module_compile_options.optLevel = OPTIX_COMPILE_OPTIMIZATION_DEFAULT;
 		module_compile_options.debugLevel = OPTIX_COMPILE_DEBUG_LEVEL_MINIMAL;
 
-		m_state.pipeline_compile_options.usesMotionBlur = false;
-		m_state.pipeline_compile_options.traversableGraphFlags = OPTIX_TRAVERSABLE_GRAPH_FLAG_ALLOW_SINGLE_GAS;
+		m_state.pipeline_compile_options.usesMotionBlur = true;
+		m_state.pipeline_compile_options.traversableGraphFlags = OPTIX_TRAVERSABLE_GRAPH_FLAG_ALLOW_ANY;
 		m_state.pipeline_compile_options.numPayloadValues = 2;
 		m_state.pipeline_compile_options.numAttributeValues = 6;
 #ifdef DEBUG // Enables debug exceptions during optix launches. This may incur significant performance cost and should only be done during development.
@@ -271,16 +391,6 @@ private:
 		m_state.pipeline_compile_options.exceptionFlags = OPTIX_EXCEPTION_FLAG_NONE;
 #endif // DEBUG
 		m_state.pipeline_compile_options.pipelineLaunchParamsVariableName = "params";
-
-		//std::string currentPath(_getcwd(NULL, 0));
-		//std::string filename = currentPath + "/../Binaries/x64/Debug/Hello.ptx";
-		////std::string filename = currentPath + "./Hello.ptx";
-
-		//size_t inputSize = 0;
-		//std::fstream file(filename);
-		//std::string source(std::istreambuf_iterator<char>(file), {});
-		//const char* input = source.c_str();
-		//inputSize = source.size();
 
 		char   log[2048];
 		size_t sizeof_log = sizeof(log);
@@ -446,7 +556,7 @@ private:
 			direct_callable_stack_size_from_traversal,
 			direct_callable_stack_size_from_state,
 			continuation_stack_size,
-			1  // maxTraversableDepth
+			m_maxTraceDepth  // maxTraversableDepth
 		));
 	}
 
@@ -499,7 +609,6 @@ private:
 			case Material::Dielectric:
 				hg_stbs[i].data.mat.ir = scene.m_spheres[i].GetMaterial().GetIR();
 				optixSbtRecordPackHeader(m_state.dielectric_hit_group, &hg_stbs[i]);
-			default:
 				break;
 			}
 		}
