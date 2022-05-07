@@ -148,7 +148,7 @@ static __forceinline__ __device__ float3 random_in_unit_disk(unsigned int& seed)
 	}
 }
 
-static __forceinline__ __device__ void get_ray(float s, float t, float3& origin, float3& direction, unsigned int& seed)
+static __forceinline__ __device__ void get_ray(float s, float t, float3& origin, float3& direction, float& time, unsigned int& seed)
 {
 	RayGenData* rtData = reinterpret_cast<RayGenData*>(optixGetSbtDataPointer());
 	float3 rd = params.lens_radius * random_in_unit_disk(seed);
@@ -158,6 +158,7 @@ static __forceinline__ __device__ void get_ray(float s, float t, float3& origin,
 
 	origin = params.origin + offset;
 	direction = params.w + s * params.u * 0.5 + t * params.v * 0.5 - offset;
+	time = random_float(seed);
 }
 
 extern "C" __global__ void __raygen__rg()
@@ -174,7 +175,8 @@ extern "C" __global__ void __raygen__rg()
 		auto v = 2 * float(launch_index.y + random_float(seed)) / (params.height - 1) - 1;
 		float3 origin;
 		float3 direction;
-		get_ray(u, v, origin, direction, seed);
+		float time;
+		get_ray(u, v, origin, direction, time, seed);
 
 		PRD prd;
 		prd.attenuation = make_float3(1.0f);
@@ -193,7 +195,7 @@ extern "C" __global__ void __raygen__rg()
 			prd.direction,
 			0.001f,                // Min intersection distance
 			1e16f,               // Max intersection distance
-			random_float(seed),      // rayTime -- used for motion blur
+			time,      // rayTime -- used for motion blur
 			OptixVisibilityMask(1), // Specify always visible
 			OPTIX_RAY_FLAG_NONE,
 			0,                   // SBT offset   -- See SBT discussion
@@ -302,8 +304,8 @@ extern "C" __global__ void __closesthit__lambertian()
 			prd->direction,
 			0.001f,                // Min intersection distance
 			1e16f,               // Max intersection distance
-			0.0f,                // rayTime -- used for motion blur
-			OptixVisibilityMask(255), // Specify always visible
+			optixGetRayTime(), // rayTime -- used for motion blur
+			OptixVisibilityMask(1), // Specify always visible
 			OPTIX_RAY_FLAG_NONE,
 			0,                   // SBT offset   -- See SBT discussion
 			1,                   // SBT stride   -- See SBT discussion
@@ -350,8 +352,8 @@ extern "C" __global__ void __closesthit__metal()
 				prd->direction,
 				0.001f,                // Min intersection distance
 				1e16f,               // Max intersection distance
-				0.0f,                // rayTime -- used for motion blur
-				OptixVisibilityMask(255), // Specify always visible
+				optixGetRayTime(),  // rayTime -- used for motion blur
+				OptixVisibilityMask(1), // Specify always visible
 				OPTIX_RAY_FLAG_NONE,
 				0,                   // SBT offset   -- See SBT discussion
 				1,                   // SBT stride   -- See SBT discussion
@@ -425,8 +427,8 @@ extern "C" __global__ void __closesthit__dielectric()
 			prd->direction,
 			0.001f,                // Min intersection distance
 			1e16f,               // Max intersection distance
-			0.0f,                // rayTime -- used for motion blur
-			OptixVisibilityMask(255), // Specify always visible
+			optixGetRayTime(),  // rayTime -- used for motion blur
+			OptixVisibilityMask(1), // Specify always visible
 			OPTIX_RAY_FLAG_NONE,
 			0,                   // SBT offset   -- See SBT discussion
 			1,                   // SBT stride   -- See SBT discussion
