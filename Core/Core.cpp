@@ -13,7 +13,8 @@
 
 #define ENABLE_OPTIX_RENDERER 0
 
-#include "GLTFLoader.h"
+#define CGLTF_IMPLEMENTATION
+#include "cgltf.h"
 
 static void ErrorCallback(int error, const char* description)
 {
@@ -363,7 +364,43 @@ int main(int argc, char* argv[])
 
 	camera.SetForward(lookat - lookfrom);
 
-	GLTFLoader loader(R"(E:\GitHub\Venusaur\Core\CornellBox\scene.gltf)");
+	std::string bufferName;
+	
+	cgltf_options options = {};
+	cgltf_data* data = NULL;
+	cgltf_result result = cgltf_parse_file(&options, "./CornellBox/scene.gltf", &data);
+	if (result == cgltf_result_success)
+	{
+		cgltf_load_buffers(&options, data, "./CornellBox/scene.gltf");
+
+		bufferName = data->buffers[0].uri;
+
+		auto prims = data->meshes[0].primitives;
+		for (size_t at = 0; at < prims->attributes_count; at++)
+		{
+			size_t count = prims->attributes[at].data->count;
+			size_t stride = prims->attributes[at].data->stride;
+
+		}
+		for (int i = 0; i < data->meshes[0].primitives_count; i++)
+		{
+			for (size_t j = 0; j < length; j++)
+			{
+				// pos
+				std::cout << reinterpret_cast<float*>(data->meshes[0].primitives[i].attributes->data->buffer_view->buffer->data)[j + 0] << ",";
+				std::cout << reinterpret_cast<float*>(data->meshes[0].primitives[i].attributes->data->buffer_view->buffer->data)[j + 1] << ",";
+				std::cout << reinterpret_cast<float*>(data->meshes[0].primitives[i].attributes->data->buffer_view->buffer->data)[j + 2] << "\t";
+				// norm																							 
+				std::cout << reinterpret_cast<float*>(data->meshes[0].primitives[i].attributes->data->buffer_view->buffer->data)[j + 3] << ",";
+				std::cout << reinterpret_cast<float*>(data->meshes[0].primitives[i].attributes->data->buffer_view->buffer->data)[j + 4] << ",";
+				std::cout << reinterpret_cast<float*>(data->meshes[0].primitives[i].attributes->data->buffer_view->buffer->data)[j + 5] << "\t";
+
+				std::cout << std::endl;
+			}
+		}
+
+		cgltf_free(data);
+	}
 
 	// Rendering.
 	while (!glfwWindowShouldClose(window))
@@ -395,10 +432,9 @@ int main(int argc, char* argv[])
 		ImGui::SliderFloat("Focal Length", &length, 0.0f, 20.0f);
 		camera.SetFocalLength(length);
 	
-		std::string scene = std::to_string(loader.GetGLTF()->at("scene").as_int64());
-		ImGui::Text("Scene:\t%s", scene.c_str());
-		std::string binName = loader.GetBinaryName();
-		ImGui::Text("Buffer:\t%s", binName.c_str());
+		//std::string scene = std::to_string(loader.GetGLTF()->at("scene").as_int64());
+		//ImGui::Text("Scene:\t%s", scene.c_str());
+		ImGui::Text("Buffer:\t%s", bufferName.c_str());
 
 
 
