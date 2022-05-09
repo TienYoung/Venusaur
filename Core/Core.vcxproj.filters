@@ -110,6 +110,9 @@
     <ClInclude Include="CUDAOutputBuffer.h">
       <Filter>sutil</Filter>
     </ClInclude>
+    <ClInclude Include="GLTFLoader.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <CudaCompile Include="RayTracer.cu">

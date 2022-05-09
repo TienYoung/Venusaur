@@ -13,6 +13,8 @@
 
 #define ENABLE_OPTIX_RENDERER 0
 
+#include "GLTFLoader.h"
+
 static void ErrorCallback(int error, const char* description)
 {
 	std::cerr << "GLFW Error " << error << ": " << description << std::endl;
@@ -265,7 +267,7 @@ int main(int argc, char* argv[])
 	std::filesystem::path ptxPath(R"(E:\GitHub\Venusaur\Binaries\x64\Debug\RayTracer.ptx)");
 	std::fstream ptxFile(ptxPath);
 	std::string ptxSource(std::istreambuf_iterator<char>(ptxFile), {});
-
+	ptxFile.close();
 	// Init Optix.
 	optix_renderer.Init(scene, ptxSource);
 
@@ -361,6 +363,8 @@ int main(int argc, char* argv[])
 
 	camera.SetForward(lookat - lookfrom);
 
+	GLTFLoader loader(R"(E:\GitHub\Venusaur\Core\CornellBox\scene.gltf)");
+
 	// Rendering.
 	while (!glfwWindowShouldClose(window))
 	{
@@ -390,6 +394,14 @@ int main(int argc, char* argv[])
 		float length = camera.GetFocalLength();
 		ImGui::SliderFloat("Focal Length", &length, 0.0f, 20.0f);
 		camera.SetFocalLength(length);
+	
+		std::string scene = std::to_string(loader.GetGLTF()->at("scene").as_int64());
+		ImGui::Text("Scene:\t%s", scene.c_str());
+		std::string binName = loader.GetBinaryName();
+		ImGui::Text("Buffer:\t%s", binName.c_str());
+
+
+
 		ImGui::End();
 
 		ImGui::Render();
