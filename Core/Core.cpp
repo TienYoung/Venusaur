@@ -374,30 +374,71 @@ int main(int argc, char* argv[])
 		cgltf_load_buffers(&options, data, "./CornellBox/scene.gltf");
 
 		bufferName = data->buffers[0].uri;
+		auto prim = data->meshes[0].primitives[0];
 
-		auto prims = data->meshes[0].primitives;
-		for (size_t at = 0; at < prims->attributes_count; at++)
+		auto idView = prim.indices->buffer_view;
+		auto idCount = prim.indices->count;
+		
+		GLuint scene_ebo;
+		if (prim.indices->type == cgltf_type_scalar 
+			&& prim.indices->component_type == cgltf_component_type_r_32u )
 		{
-			size_t count = prims->attributes[at].data->count;
-			size_t stride = prims->attributes[at].data->stride;
-
-		}
-		for (int i = 0; i < data->meshes[0].primitives_count; i++)
-		{
-			for (size_t j = 0; j < length; j++)
+			if (idView->type == cgltf_buffer_view_type_indices)
 			{
-				// pos
-				std::cout << reinterpret_cast<float*>(data->meshes[0].primitives[i].attributes->data->buffer_view->buffer->data)[j + 0] << ",";
-				std::cout << reinterpret_cast<float*>(data->meshes[0].primitives[i].attributes->data->buffer_view->buffer->data)[j + 1] << ",";
-				std::cout << reinterpret_cast<float*>(data->meshes[0].primitives[i].attributes->data->buffer_view->buffer->data)[j + 2] << "\t";
-				// norm																							 
-				std::cout << reinterpret_cast<float*>(data->meshes[0].primitives[i].attributes->data->buffer_view->buffer->data)[j + 3] << ",";
-				std::cout << reinterpret_cast<float*>(data->meshes[0].primitives[i].attributes->data->buffer_view->buffer->data)[j + 4] << ",";
-				std::cout << reinterpret_cast<float*>(data->meshes[0].primitives[i].attributes->data->buffer_view->buffer->data)[j + 5] << "\t";
+				glCreateBuffers(1, &scene_ebo);
+				glNamedBufferStorage(scene_ebo, sizeof(unsigned int) * idCount, idView->buffer->data, GL_DYNAMIC_STORAGE_BIT);
 
+				//auto idBuffer = idView->buffer;
+				//auto idData = reinterpret_cast<unsigned int*>(idBuffer->data);
+				//for (size_t i = 0; i < idCount; i++)
+				//{
+				//	std::cout << idData[i] << ", ";
+				//}
+				//std::cout << std::endl;
+			}
+		}
+
+		auto vertexView = prim.attributes[0].data->buffer_view;
+
+		auto posView = prim.attributes[1].data->buffer_view;
+		auto posCount = prim.attributes[1].data->count;
+		auto posOffset = prim.attributes[1].data->offset;
+		auto posStride = prim.attributes[1].data->stride;
+
+		auto normView = prim.attributes[0].data->buffer_view;
+		auto normCount = prim.attributes[0].data->count;
+		auto normOffset = prim.attributes[0].data->offset;
+		auto normStride = prim.attributes[0].data->stride;
+
+		auto vtData = reinterpret_cast<float*>(posView->buffer->data) + 384;
+		for (size_t i = 0; i < 24; i++)
+		{
+			std::cout << vtData[i] << ", ";
+			if ((i+1) % 3 == 0)
+			{
 				std::cout << std::endl;
 			}
 		}
+		std::cout << std::endl;
+		
+
+		//GLuint scene_vbo;
+		//glCreateBuffers(1, &scene_vbo);
+		//glNamedBufferStorage(scene_vbo, posStride * posCount + normStride * normCount, posView->buffer->data, GL_DYNAMIC_STORAGE_BIT);
+
+		//// VAO
+		//GLuint scene_vao;
+		//glCreateVertexArrays(1, &scene_vao);
+
+		//glVertexArrayVertexBuffer(scene_vao, 0, scene_vbo, posOffset, posStride);
+		//glVertexArrayVertexBuffer(scene_vao, 1, scene_vbo, normOffset, normStride);
+		//glVertexArrayElementBuffer(scene_vao, scene_ebo);
+
+		//glEnableVertexArrayAttrib(scene_vao, 0); //pos
+		//glEnableVertexArrayAttrib(scene_vao, 1); //norm
+		//glVertexArrayAttribFormat(scene_vao, 0, 3, GL_FLOAT, GL_FALSE, 0);
+		//glVertexArrayAttribBinding(scene_vao, 0, 0);
+
 
 		cgltf_free(data);
 	}
