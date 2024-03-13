@@ -5,9 +5,9 @@
 #include <GL/gl3w.h>
 #include <GLFW/glfw3.h>
 
-#include "imgui/imgui.h"
-#include "imgui/imgui_impl_glfw.h"
-#include "imgui/imgui_impl_opengl3.h"
+#include <imgui.h>
+#include <imgui_impl_glfw.h>
+#include <imgui_impl_opengl3.h>
 
 #include "Renderer.h"
 
@@ -238,7 +238,7 @@ GLuint createGLProgram(
 
 int main(int argc, char* argv[])
 {
-	std::filesystem::path ptxPath(R"(E:\GitHub\Venusaur\Binaries\x64\Debug\RayTracer.ptx)");
+	std::filesystem::path ptxPath("RayTracer.ptx");
 	std::fstream ptxFile(ptxPath);
 	std::string ptxSource(std::istreambuf_iterator<char>(ptxFile), {});
 
@@ -249,7 +249,7 @@ int main(int argc, char* argv[])
 	CUDA_CHECK(cudaGetDevice(&current_device));
 	CUDA_CHECK(cudaDeviceGetAttribute(&is_display_device, cudaDevAttrKernelExecTimeout, current_device));
 	CUDAOutputBufferType type = is_display_device ? CUDAOutputBufferType::GL_INTEROP : CUDAOutputBufferType::CUDA_DEVICE;
-	CUDAOutputBuffer<uchar4> outputBuffer(type, image_width, image_height);
+	CUDAOutputBuffer<uchar4> outputBuffer(CUDAOutputBufferType::CUDA_DEVICE, image_width, image_height);
 
 
 	// Init GLFW.
