@@ -284,7 +284,7 @@ private:
 
 		char   log[2048];
 		size_t sizeof_log = sizeof(log);
-		OPTIX_CHECK_LOG(optixModuleCreateFromPTX(
+		OPTIX_CHECK_LOG(optixModuleCreate(
 			m_state.context,
 			&module_compile_options,
 			&m_state.pipeline_compile_options,
@@ -407,7 +407,6 @@ private:
 
 		OptixPipelineLinkOptions pipeline_link_options = {};
 		pipeline_link_options.maxTraceDepth = m_maxTraceDepth;
-		pipeline_link_options.debugLevel = OPTIX_COMPILE_DEBUG_LEVEL_FULL;
 
 		char   log[2048];
 		size_t sizeof_log = sizeof(log);
@@ -425,7 +424,7 @@ private:
 		OptixStackSizes stack_sizes = {};
 		for (auto& prog_group : program_groups)
 		{
-			OPTIX_CHECK(optixUtilAccumulateStackSizes(prog_group, &stack_sizes));
+			OPTIX_CHECK(optixUtilAccumulateStackSizes(prog_group, &stack_sizes, m_state.pipeline));
 		}
 
 		uint32_t direct_callable_stack_size_from_traversal;
