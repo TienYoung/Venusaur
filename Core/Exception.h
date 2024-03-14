@@ -7,6 +7,7 @@
 
 #include <gl/gl3w.h>
 
+#ifdef ENABLE_OPTIX
 //------------------------------------------------------------------------------
 //
 // OptiX error-checking
@@ -152,6 +153,8 @@ private:
 		return out.str();
 	}
 };
+#endif
+
 
 #define GL_CHECK( call )                                                   \
         do                                                                     \

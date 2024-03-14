@@ -1,6 +1,6 @@
 #pragma once
 
-#include <optix.h>
+//#include <optix.h>
 
 #include <vector>
 #include <random>

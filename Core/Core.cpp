@@ -1,6 +1,7 @@
 #include <cassert>
 #include <chrono>
 #include <filesystem>
+#include <iostream>
 
 #include <GL/gl3w.h>
 #include <GLFW/glfw3.h>
@@ -9,9 +10,16 @@
 #include <imgui_impl_glfw.h>
 #include <imgui_impl_opengl3.h>
 
-#include "Renderer.h"
 #define ENABLE_OPTIX
 #undef ENABLE_OPTIX
+
+#include <glm/glm.hpp>
+
+#ifdef ENABLE_OPTIX
+#include "Renderer.h"
+#include "Scene.h"
+#include "Camera.h"
+#endif
 
 static void ErrorCallback(int error, const char* description)
 {
@@ -28,9 +36,9 @@ auto aperture = 0.1f;
 const auto aspect_ratio = 3.0f / 2.0f;
 const int image_width = 1200;
 const int image_height = static_cast<int>(image_width / aspect_ratio);
+#ifdef ENABLE_OPTIX
 Camera camera(lookfrom, 20.0f, aspect_ratio, aperture, dist_to_focus);
 Scene scene;
-#ifdef ENABLE_OPTIX
 Renderer optix_renderer;
 #endif
 
@@ -46,6 +54,7 @@ static void KeyCallback(GLFWwindow* window, int32_t key, int32_t /*scancode*/, i
 	}
 	if (action == GLFW_REPEAT || action == GLFW_PRESS)
 	{
+#ifdef ENABLE_OPTIX
 		// Move
 		switch (key)
 		{
@@ -82,13 +91,16 @@ static void KeyCallback(GLFWwindow* window, int32_t key, int32_t /*scancode*/, i
 		default:
 			break;
 		}
+#endif
 	}
 }
 
 static void WindowResizeCallback(GLFWwindow* window, int width, int height)
 {
+#ifdef ENABLE_OPTIX
 	auto outputBuffer = static_cast<CUDAOutputBuffer<uchar4>*>(glfwGetWindowUserPointer(window));
 	outputBuffer->resize(width, height);
+#endif
 }
 
 void GLAPIENTRY MessageCallback(GLenum source, GLenum type, GLuint id, GLenum severity, GLsizei length, GLchar const* message, void const* user_param)
@@ -301,7 +313,7 @@ int main(int argc, char* argv[])
 	ImGui_ImplGlfw_InitForOpenGL(window, true);
 	ImGui_ImplOpenGL3_Init("#version 460 core");
 
-	ImFont* font = io.Fonts->AddFontFromFileTTF("c:\\Windows\\Fonts\\SegoeUI.ttf", 18.0f, NULL, io.Fonts->GetGlyphRangesChineseSimplifiedCommon());
+	ImFont* font = io.Fonts->AddFontFromFileTTF(R"(c:\Windows\Fonts\SegoeUI.ttf)", 18.0f, NULL, io.Fonts->GetGlyphRangesChineseSimplifiedCommon());
 	IM_ASSERT(font != NULL);
 
 	glEnable(GL_DEBUG_OUTPUT);
@@ -361,8 +373,9 @@ int main(int argc, char* argv[])
 
 	auto end = std::chrono::steady_clock::now();
 	auto start = end;
-
+#ifdef ENABLE_OPTIX
 	camera.SetForward(lookat - lookfrom);
+#endif
 
 	// Rendering.
 	while (!glfwWindowShouldClose(window))
@@ -390,9 +403,14 @@ int main(int argc, char* argv[])
 		ImGui::Text("FPS:%.1f\t%2fms", fps, frame_time * 1000);
 		ImGui::PopStyleColor();
 
-		float length = camera.GetFocalLength();
+		float length = 10.0f;
+#ifdef ENABLE_OPTIX
+		length = camera.GetFocalLength();
+#endif
 		ImGui::SliderFloat("Focal Length", &length, 0.0f, 20.0f);
+#ifdef ENABLE_OPTIX
 		camera.SetFocalLength(length);
+#endif
 		ImGui::End();
 
 		ImGui::Render();

@@ -30,6 +30,7 @@
 #include "GLDisplay.h"
 
 #include <iostream>
+#include <format>
 
 namespace Venusaur
 {
@@ -68,7 +69,7 @@ GLuint createGLShader( const std::string& source, GLuint shader_type )
 		}
 	}
 
-    GL_CHECK_ERRORS();
+    //GL_CHECK_ERRORS();
 
     return shader;
 }
@@ -117,7 +118,7 @@ GLuint createGLProgram(
     glDetachShader( program, vert_shader );
     glDetachShader( program, frag_shader );
 
-    GL_CHECK_ERRORS();
+    //GL_CHECK_ERRORS();
 
     return program;
 }
@@ -126,7 +127,10 @@ GLuint createGLProgram(
 GLint getGLUniformLocation( GLuint program, const std::string& name )
 {
 	GLint loc = glGetUniformLocation( program, name.c_str() );
-    SUTIL_ASSERT_MSG( loc != -1, "Failed to get uniform loc for '" + name + "'" );
+    if (loc == -1) {
+        std::cout << std::format("Failed to get uniform loc for '{}'", name);
+        //TODO: throw Exception()
+    }
     return loc;
 }
 
@@ -173,19 +177,19 @@ GLDisplay::GLDisplay( BufferImageFormat image_format )
     : m_image_format( image_format )
 {
     GLuint m_vertex_array;
-    GL_CHECK( glGenVertexArrays(1, &m_vertex_array ) );
-    GL_CHECK( glBindVertexArray( m_vertex_array ) );
+    ( glGenVertexArrays(1, &m_vertex_array ) );
+    ( glBindVertexArray( m_vertex_array ) );
 
 	m_program = createGLProgram( s_vert_source, s_frag_source );
 	m_render_tex_uniform_loc = getGLUniformLocation( m_program, "render_tex");
 
-    GL_CHECK( glGenTextures( 1, &m_render_tex ) );
-    GL_CHECK( glBindTexture( GL_TEXTURE_2D, m_render_tex ) );
+    ( glGenTextures( 1, &m_render_tex ) );
+    ( glBindTexture( GL_TEXTURE_2D, m_render_tex ) );
 
-    GL_CHECK( glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST ) );
-    GL_CHECK( glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST ) );
-    GL_CHECK( glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE ) );
-    GL_CHECK( glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE ) );
+    ( glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST ) );
+    ( glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST ) );
+    ( glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE ) );
+    ( glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE ) );
 
 	static const GLfloat g_quad_vertex_buffer_data[] = {
 		-1.0f, -1.0f, 0.0f,
@@ -197,16 +201,16 @@ GLDisplay::GLDisplay( BufferImageFormat image_format )
 		 1.0f,  1.0f, 0.0f,
 	};
 
-	GL_CHECK( glGenBuffers( 1, &m_quad_vertex_buffer ) );
-	GL_CHECK( glBindBuffer( GL_ARRAY_BUFFER, m_quad_vertex_buffer ) );
-	GL_CHECK( glBufferData( GL_ARRAY_BUFFER,
+	( glGenBuffers( 1, &m_quad_vertex_buffer ) );
+	( glBindBuffer( GL_ARRAY_BUFFER, m_quad_vertex_buffer ) );
+	( glBufferData( GL_ARRAY_BUFFER,
             sizeof( g_quad_vertex_buffer_data),
             g_quad_vertex_buffer_data,
             GL_STATIC_DRAW
             )
         );
 
-    GL_CHECK_ERRORS();
+    //GL_CHECK_ERRORS();
 }
 
 
@@ -218,21 +222,21 @@ void GLDisplay::display(
         const uint32_t pbo
         ) const
 {
-    GL_CHECK( glBindFramebuffer( GL_FRAMEBUFFER, 0 ) );
-    GL_CHECK( glViewport( 0, 0, framebuf_res_x, framebuf_res_y ) );
+    ( glBindFramebuffer( GL_FRAMEBUFFER, 0 ) );
+    ( glViewport( 0, 0, framebuf_res_x, framebuf_res_y ) );
 
-    GL_CHECK( glClear( GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT ) );
+    ( glClear( GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT ) );
 
-    GL_CHECK( glUseProgram( m_program ) );
+    ( glUseProgram( m_program ) );
 
     // Bind our texture in Texture Unit 0
-    GL_CHECK( glActiveTexture( GL_TEXTURE0 ) );
-    GL_CHECK( glBindTexture( GL_TEXTURE_2D, m_render_tex ) );
-    GL_CHECK( glBindBuffer( GL_PIXEL_UNPACK_BUFFER, pbo ) );
+    ( glActiveTexture( GL_TEXTURE0 ) );
+    ( glBindTexture( GL_TEXTURE_2D, m_render_tex ) );
+    ( glBindBuffer( GL_PIXEL_UNPACK_BUFFER, pbo ) );
 
-    GL_CHECK( glPixelStorei(GL_UNPACK_ALIGNMENT, 4) ); // TODO!!!!!!
+    ( glPixelStorei(GL_UNPACK_ALIGNMENT, 4) ); // TODO!!!!!!
 
-    size_t elmt_size = pixelFormatSize( m_image_format );
+    size_t elmt_size = pixelFormatSize(m_image_format);
     if      ( elmt_size % 8 == 0) glPixelStorei(GL_UNPACK_ALIGNMENT, 8);
     else if ( elmt_size % 4 == 0) glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
     else if ( elmt_size % 2 == 0) glPixelStorei(GL_UNPACK_ALIGNMENT, 2);
@@ -252,16 +256,16 @@ void GLDisplay::display(
     else if( m_image_format == BufferImageFormat::FLOAT4 )
         glTexImage2D( GL_TEXTURE_2D, 0, GL_RGBA32F, screen_res_x, screen_res_y, 0, GL_RGBA, GL_FLOAT,         nullptr );
 
-    else
-        throw Exception( "Unknown buffer format" );
+    //else
+    //    throw Exception( "Unknown buffer format" );
 
-    GL_CHECK( glBindBuffer( GL_PIXEL_UNPACK_BUFFER, 0 ) );
-    GL_CHECK( glUniform1i( m_render_tex_uniform_loc , 0 ) );
+    ( glBindBuffer( GL_PIXEL_UNPACK_BUFFER, 0 ) );
+    ( glUniform1i( m_render_tex_uniform_loc , 0 ) );
 
     // 1st attribute buffer : vertices
-    GL_CHECK( glEnableVertexAttribArray( 0 ) );
-    GL_CHECK( glBindBuffer(GL_ARRAY_BUFFER, m_quad_vertex_buffer ) );
-    GL_CHECK( glVertexAttribPointer(
+    ( glEnableVertexAttribArray( 0 ) );
+    ( glBindBuffer(GL_ARRAY_BUFFER, m_quad_vertex_buffer ) );
+    ( glVertexAttribPointer(
             0,                  // attribute 0. No particular reason for 0, but must match the layout in the shader.
             3,                  // size
             GL_FLOAT,           // type
@@ -272,18 +276,18 @@ void GLDisplay::display(
         );
 
     if( convertToSrgb )
-        GL_CHECK( glEnable( GL_FRAMEBUFFER_SRGB ) );
+        ( glEnable( GL_FRAMEBUFFER_SRGB ) );
     else 
-        GL_CHECK( glDisable( GL_FRAMEBUFFER_SRGB ) );
+        ( glDisable( GL_FRAMEBUFFER_SRGB ) );
 
     // Draw the triangles !
-    GL_CHECK( glDrawArrays(GL_TRIANGLES, 0, 6) ); // 2*3 indices starting at 0 -> 2 triangles
+    ( glDrawArrays(GL_TRIANGLES, 0, 6) ); // 2*3 indices starting at 0 -> 2 triangles
 
-    GL_CHECK( glDisableVertexAttribArray(0) );
+    ( glDisableVertexAttribArray(0) );
 
-    GL_CHECK( glDisable( GL_FRAMEBUFFER_SRGB ) );
+    ( glDisable( GL_FRAMEBUFFER_SRGB ) );
 
-    GL_CHECK_ERRORS();
+    //GL_CHECK_ERRORS();
 }
 
 } // namespace sutil

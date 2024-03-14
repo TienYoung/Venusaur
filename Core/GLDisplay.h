@@ -35,9 +35,6 @@
 #include <cstdint>
 #include <string>
 
-#include <sutil/sutil.h>
-#include <sutil/sutilapi.h>
-
 namespace Venusaur
 {
 
@@ -48,13 +45,28 @@ namespace Venusaur
 		FLOAT3
 	};
 
+	size_t pixelFormatSize(BufferImageFormat format)
+	{
+		switch (format)
+		{
+		case BufferImageFormat::UNSIGNED_BYTE4:
+			return sizeof(char) * 4;
+		case BufferImageFormat::FLOAT4:
+			return sizeof(float) * 4;
+		case BufferImageFormat::FLOAT3:
+			return sizeof(float) * 3;
+		default:
+			return 0;
+		}
+	}
+
 	class GLDisplay
 	{
 	public:
-		SUTILAPI GLDisplay(
+		GLDisplay(
 			BufferImageFormat format = BufferImageFormat::UNSIGNED_BYTE4);
 
-		SUTILAPI void display(
+		void display(
 			const int32_t  screen_res_x,
 			const int32_t  screen_res_y,
 			const int32_t  framebuf_res_x,
@@ -67,10 +79,10 @@ namespace Venusaur
 		GLint    m_render_tex_uniform_loc = -1;
 		GLuint   m_quad_vertex_buffer = 0;
 
-		sutil::BufferImageFormat m_image_format;
+		BufferImageFormat m_image_format;
 
 		static const std::string s_vert_source;
 		static const std::string s_frag_source;
 	};
 
-} // end namespace sutil
+} // end namespace Venusaur

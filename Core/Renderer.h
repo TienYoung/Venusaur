@@ -1,5 +1,6 @@
 #pragma once
 
+#ifdef ENABLE_OPTIX
 #include <optix.h>
 #include <optix_function_table_definition.h>
 #include <optix_stack_size.h>
@@ -9,14 +10,13 @@
 
 #include "Exception.h"
 #include "CUDAOutputBuffer.h"
+#include "RayTracer.h"
+#endif
 
 #include <fstream>
 #include <vector>
 #include <string>
 
-#include "RayTracer.h"
-#include "Scene.h"
-#include "Camera.h"
 
 
 class Renderer
