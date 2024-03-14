@@ -58,8 +58,8 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>_DEBUG;_CONSOLE;NOMINMAX;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <LanguageStandard>stdcpp17</LanguageStandard>
-      <AdditionalIncludeDirectories>C:\ProgramData\NVIDIA Corporation\OptiX SDK 8.0.0\include;$(CUDA_PATH)\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <LanguageStandard>stdcpp20</LanguageStandard>
+      <AdditionalIncludeDirectories>$(CUDA_PATH)\include;C:\ProgramData\NVIDIA Corporation\OptiX SDK 8.0.0\include;C:\ProgramData\NVIDIA Corporation\OptiX SDK 8.0.0\SDK;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -120,7 +120,7 @@
     <ClInclude Include="Sphere.h" />
     <ClInclude Include="Material.h" />
     <ClInclude Include="Preprocessor.h" />
-    <ClInclude Include="random.cuh">
+    <ClInclude Include="random.h">
       <FileType>Document</FileType>
     </ClInclude>
     <ClInclude Include="Renderer.h" />

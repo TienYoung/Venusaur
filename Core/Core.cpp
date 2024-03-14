@@ -10,6 +10,8 @@
 #include <imgui_impl_opengl3.h>
 
 #include "Renderer.h"
+#define ENABLE_OPTIX
+#undef ENABLE_OPTIX
 
 static void ErrorCallback(int error, const char* description)
 {
@@ -28,7 +30,9 @@ const int image_width = 1200;
 const int image_height = static_cast<int>(image_width / aspect_ratio);
 Camera camera(lookfrom, 20.0f, aspect_ratio, aperture, dist_to_focus);
 Scene scene;
+#ifdef ENABLE_OPTIX
 Renderer optix_renderer;
+#endif
 
 static void KeyCallback(GLFWwindow* window, int32_t key, int32_t /*scancode*/, int32_t action, int32_t /*mods*/)
 {
@@ -87,7 +91,7 @@ static void WindowResizeCallback(GLFWwindow* window, int width, int height)
 	outputBuffer->resize(width, height);
 }
 
-void message_callback(GLenum source, GLenum type, GLuint id, GLenum severity, GLsizei length, GLchar const* message, void const* user_param)
+void GLAPIENTRY MessageCallback(GLenum source, GLenum type, GLuint id, GLenum severity, GLsizei length, GLchar const* message, void const* user_param)
 {
 	// ignore non-significant error/warning codes
 	if (id == 131169 || id == 131185 || id == 131218 || id == 131204) return;
@@ -238,19 +242,11 @@ GLuint createGLProgram(
 
 int main(int argc, char* argv[])
 {
+#ifdef ENABLE_OPTIX
 	std::filesystem::path ptxPath("RayTracer.ptx");
 	std::fstream ptxFile(ptxPath);
 	std::string ptxSource(std::istreambuf_iterator<char>(ptxFile), {});
-
-	// Init Optix.
-	optix_renderer.Init(scene, ptxSource);
-
-	int current_device, is_display_device;
-	CUDA_CHECK(cudaGetDevice(&current_device));
-	CUDA_CHECK(cudaDeviceGetAttribute(&is_display_device, cudaDevAttrKernelExecTimeout, current_device));
-	CUDAOutputBufferType type = is_display_device ? CUDAOutputBufferType::GL_INTEROP : CUDAOutputBufferType::CUDA_DEVICE;
-	CUDAOutputBuffer<uchar4> outputBuffer(CUDAOutputBufferType::CUDA_DEVICE, image_width, image_height);
-
+#endif
 
 	// Init GLFW.
 	GLFWwindow* window = nullptr;
@@ -273,7 +269,6 @@ int main(int argc, char* argv[])
 	glfwSetWindowAspectRatio(window, image_width, image_height);
 	glfwSetWindowSizeCallback(window, WindowResizeCallback);
 	glfwSetKeyCallback(window, KeyCallback);
-	glfwSetWindowUserPointer(window, &outputBuffer);
 	glfwMakeContextCurrent(window);
 	
 	// Init gl3w.
@@ -283,6 +278,19 @@ int main(int argc, char* argv[])
 		glfwTerminate();
 		return -1;
 	}
+
+#ifdef ENABLE_OPTIX
+	// Init Optix.
+	optix_renderer.Init(scene, ptxSource);
+
+	int current_device, is_display_device;
+	CUDA_CHECK(cudaGetDevice(&current_device));
+	CUDA_CHECK(cudaDeviceGetAttribute(&is_display_device, cudaDevAttrKernelExecTimeout, current_device));
+	CUDAOutputBufferType type = is_display_device ? CUDAOutputBufferType::GL_INTEROP : CUDAOutputBufferType::CUDA_DEVICE;
+	CUDAOutputBuffer<uchar4> outputBuffer(type, image_width, image_height);
+
+	glfwSetWindowUserPointer(window, &outputBuffer);
+#endif
 
 	IMGUI_CHECKVERSION();
 	ImGui::CreateContext();
@@ -297,7 +305,9 @@ int main(int argc, char* argv[])
 	IM_ASSERT(font != NULL);
 
 	glEnable(GL_DEBUG_OUTPUT);
-	glDebugMessageCallback(message_callback, nullptr);
+	glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
+	glDebugMessageCallback(MessageCallback, nullptr);
+	glDebugMessageControl(GL_DONT_CARE, GL_DONT_CARE, GL_DONT_CARE, 0, nullptr, GL_TRUE);
 
 
 	// Create resource.
@@ -391,9 +401,13 @@ int main(int argc, char* argv[])
 		glfwGetFramebufferSize(window, &width, &height);
 
 		start = std::chrono::steady_clock::now();
+#ifdef ENABLE_OPTIX
 		optix_renderer.Draw(camera, outputBuffer);
+#endif
 		end = std::chrono::steady_clock::now();
+#ifdef ENABLE_OPTIX
 		GLuint pbo = outputBuffer.getPBO();
+#endif
 
 		(glBindFramebuffer(GL_FRAMEBUFFER, 0));
 		(glViewport(0, 0, width, height));
@@ -407,12 +421,13 @@ int main(int argc, char* argv[])
 
 		// Equivalent of glActiveTexture + glBindTexture.
 		glBindTextureUnit(0, renderTex);
-
+#ifdef ENABLE_OPTIX
 		glBindBuffer(GL_PIXEL_UNPACK_BUFFER, pbo);
+#endif
 		glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
-
+#ifdef ENABLE_OPTIX
 		(glTextureSubImage2D(renderTex, 0, 0, 0, outputBuffer.width(), outputBuffer.height(), GL_RGBA, GL_UNSIGNED_BYTE, nullptr));
-
+#endif
 		glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
 
 		glUniform1i(texLoc, 0);
@@ -428,8 +443,9 @@ int main(int argc, char* argv[])
 
 		last_time = current_time;
 	}
-
+#ifdef ENABLE_OPTIX
 	optix_renderer.Cleanup();
+#endif
 
 	// Cleanup.
 	glfwDestroyWindow(window);

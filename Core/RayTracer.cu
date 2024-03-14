@@ -1,7 +1,7 @@
 #include <optix.h>
 
 #include "vec_math.h"
-#include "random.cuh"
+#include "random.h"
 
 #include "RayTracer.h"
 
