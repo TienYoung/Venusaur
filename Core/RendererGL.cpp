@@ -27,7 +27,7 @@
 //
 
 #include "Exception.h"
-#include "GLDisplay.h"
+#include "RendererGL.h"
 
 #include <iostream>
 #include <format>
@@ -143,7 +143,7 @@ GLint getGLUniformLocation( GLuint program, const std::string& name )
 //
 //-----------------------------------------------------------------------------
 
-const std::string GLDisplay::s_vert_source = R"(
+const std::string RendererGL::s_vert_source = R"(
 #version 330 core
 
 layout(location = 0) in vec3 vertexPosition_modelspace;
@@ -156,7 +156,7 @@ void main()
 }
 )";
 
-const std::string GLDisplay::s_frag_source = R"(
+const std::string RendererGL::s_frag_source = R"(
 #version 330 core
 
 in vec2 UV;
@@ -173,7 +173,7 @@ void main()
 
 
 
-GLDisplay::GLDisplay( BufferImageFormat image_format )
+RendererGL::RendererGL( BufferImageFormat image_format )
     : m_image_format( image_format )
 {
     GLuint m_vertex_array;
@@ -214,7 +214,7 @@ GLDisplay::GLDisplay( BufferImageFormat image_format )
 }
 
 
-void GLDisplay::display(
+void RendererGL::display(
         const int32_t  screen_res_x,
         const int32_t  screen_res_y,
         const int32_t  framebuf_res_x,

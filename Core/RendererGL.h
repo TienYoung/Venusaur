@@ -60,10 +60,10 @@ namespace Venusaur
 		}
 	}
 
-	class GLDisplay
+	class RendererGL
 	{
 	public:
-		GLDisplay(
+		RendererGL(
 			BufferImageFormat format = BufferImageFormat::UNSIGNED_BYTE4);
 
 		void display(

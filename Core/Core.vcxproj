@@ -100,7 +100,7 @@
   <ItemGroup>
     <ClCompile Include="Camera.cpp" />
     <ClCompile Include="Core.cpp" />
-    <ClCompile Include="GLDisplay.cpp" />
+    <ClCompile Include="RendererGL.cpp" />
   </ItemGroup>
   <ItemGroup>
     <CudaCompile Include="RayTracer.cu">
@@ -114,7 +114,7 @@
     <ClInclude Include="Camera.h" />
     <ClInclude Include="CUDAOutputBuffer.h" />
     <ClInclude Include="Exception.h" />
-    <ClInclude Include="GLDisplay.h" />
+    <ClInclude Include="RendererGL.h" />
     <ClInclude Include="RayTracer.h" />
     <ClInclude Include="Scene.h" />
     <ClInclude Include="Sphere.h" />

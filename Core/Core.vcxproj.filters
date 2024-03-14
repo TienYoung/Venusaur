@@ -24,8 +24,8 @@
     <ClCompile Include="Camera.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="GLDisplay.cpp">
-      <Filter>Header Files</Filter>
+    <ClCompile Include="RendererGL.cpp">
+      <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -62,7 +62,7 @@
     <ClInclude Include="random.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="GLDisplay.h">
+    <ClInclude Include="RendererGL.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
