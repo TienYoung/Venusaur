@@ -39,6 +39,8 @@
 #include <cstdlib>
 #endif
 
+#include <glm/glm.hpp>
+
 /* scalar functions used in vector functions */
 #ifndef M_PIf
 #define M_PIf       3.14159265358979323846f
@@ -2621,6 +2623,12 @@ SUTIL_INLINE SUTIL_HOSTDEVICE float4 make_float4(const float2& v0, const float v
 SUTIL_INLINE SUTIL_HOSTDEVICE float4 make_float4(const float v0, const float3& v1) { return make_float4( v0, v1.x, v1.y, v1.z ); }
 SUTIL_INLINE SUTIL_HOSTDEVICE float4 make_float4(const float3& v0, const float v1) { return make_float4( v0.x, v0.y, v0.z, v1 ); }
 SUTIL_INLINE SUTIL_HOSTDEVICE float4 make_float4(const float2& v0, const float2& v1) { return make_float4( v0.x, v0.y, v1.x, v1.y ); }
+
+/** Convert from glm
+* @{
+*/
+SUTIL_INLINE SUTIL_HOSTDEVICE int3 make_int3(const glm::ivec3& v0) { return make_int3(v0.x, v0.y, v0.z); }
+SUTIL_INLINE SUTIL_HOSTDEVICE int4 make_int4(const glm::ivec4& v0) { return make_int4(v0.x, v0.y, v0.z, v0.w); }
+SUTIL_INLINE SUTIL_HOSTDEVICE float3 make_float3(const glm::vec3& v0) { return make_float3(v0.x, v0.y, v0.z); }
+SUTIL_INLINE SUTIL_HOSTDEVICE float4 make_float4(const glm::vec4& v0) { return make_float4(v0.x, v0.y, v0.z, v0.w); }
 /** @} */
-
-

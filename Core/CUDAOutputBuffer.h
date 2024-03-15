@@ -37,7 +37,7 @@
 #include <iostream>
 #include <vector>
 
-void ensureMinimumSize(int& w, int& h)
+void inline ensureMinimumSize(int& w, int& h)
 {
 	if (w <= 0)
 		w = 1;
@@ -45,7 +45,7 @@ void ensureMinimumSize(int& w, int& h)
 		h = 1;
 }
 
-void ensureMinimumSize(unsigned& w, unsigned& h)
+void inline ensureMinimumSize(unsigned& w, unsigned& h)
 {
 	if (w == 0)
 		w = 1;
@@ -128,7 +128,7 @@ CUDAOutputBuffer<PIXEL_FORMAT>::CUDAOutputBuffer( CUDAOutputBufferType type, int
         CUDA_CHECK( cudaDeviceGetAttribute( &is_display_device, cudaDevAttrKernelExecTimeout, current_device ) );
         if( !is_display_device )
         {
-            throw Exception(
+            throw Venusaur::Exception(
                     "GL interop is only available on display device, please use display device for optimal "
                     "performance.  Alternatively you can disable GL interop with --no-gl-interop and run with "
                     "degraded performance."

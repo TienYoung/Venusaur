@@ -3,23 +3,20 @@
 #include <filesystem>
 #include <iostream>
 
+#include <GL/gl3w.h>
+#include <GLFW/glfw3.h>
+
 #include <imgui.h>
 #include <imgui_impl_glfw.h>
 #include <imgui_impl_opengl3.h>
 
 #define ENABLE_OPTIX
-#undef ENABLE_OPTIX
+//#undef ENABLE_OPTIX
 
 #include <glm/glm.hpp>
 
-#ifdef ENABLE_OPTIX
-#include "Renderer.h"
-#include "Scene.h"
-#include "Camera.h"
-#endif
-
 #include "RendererGL.h"
-#include <GLFW/glfw3.h>
+#include "RendererOptix.h"
 
 static void ErrorCallback(int error, const char* description)
 {
@@ -39,7 +36,7 @@ const int image_height = static_cast<int>(image_width / aspect_ratio);
 #ifdef ENABLE_OPTIX
 Camera camera(lookfrom, 20.0f, aspect_ratio, aperture, dist_to_focus);
 Scene scene;
-Renderer optix_renderer;
+std::shared_ptr<Venusaur::RendererOptix> rendererOptix;
 #endif
 std::shared_ptr<Venusaur::RendererGL> rendererGL;
 
@@ -139,9 +136,9 @@ int main(int argc, char* argv[])
 	// Init gl3w.
 	try
 	{
-		rendererGL = std::make_shared<Venusaur::RendererGL>();
+		rendererGL = std::make_shared<Venusaur::RendererGL>(image_width, image_height);
 	}
-	catch(std::exception& e)
+	catch(const std::exception& e)
 	{
 		std::cerr << e.what() << std::endl;
 		glfwDestroyWindow(window);
@@ -151,7 +148,17 @@ int main(int argc, char* argv[])
 
 #ifdef ENABLE_OPTIX
 	// Init Optix.
-	optix_renderer.Init(scene, ptxSource);
+	try
+	{
+		rendererOptix = std::make_shared<Venusaur::RendererOptix>(scene, ptxSource);
+	}
+	catch (const std::exception& e)
+	{
+		std::cerr << e.what() << std::endl;
+		glfwDestroyWindow(window);
+		glfwTerminate();
+		return -1;
+	}
 
 	int current_device, is_display_device;
 	CUDA_CHECK(cudaGetDevice(&current_device));
@@ -226,14 +233,16 @@ int main(int argc, char* argv[])
 
 		start = std::chrono::steady_clock::now();
 #ifdef ENABLE_OPTIX
-		optix_renderer.Draw(camera, outputBuffer);
+		rendererOptix->Draw(camera, outputBuffer);
 #endif
 		end = std::chrono::steady_clock::now();
 #ifdef ENABLE_OPTIX
 		GLuint pbo = outputBuffer.getPBO();
+#else
+		GLuint pbo = 0;
 #endif
 
-		rendererGL->Display(width, height, width, height, 0);
+		rendererGL->Display(width, height, width, height, pbo);
 
 		ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData()); 
 
@@ -241,9 +250,6 @@ int main(int argc, char* argv[])
 
 		last_time = current_time;
 	}
-#ifdef ENABLE_OPTIX
-	optix_renderer.Cleanup();
-#endif
 
 	// Cleanup.
 	glfwDestroyWindow(window);

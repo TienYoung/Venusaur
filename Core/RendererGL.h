@@ -50,8 +50,7 @@ namespace Venusaur
 	class RendererGL
 	{
 	public:
-		RendererGL(
-			BufferImageFormat format = BufferImageFormat::UNSIGNED_BYTE4);
+		RendererGL(const int32_t screen_res_x, const int32_t screen_res_y, BufferImageFormat format = BufferImageFormat::UNSIGNED_BYTE4);
 
 		void Display(
 			const int32_t  screen_res_x,

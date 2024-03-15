@@ -16,7 +16,7 @@ public:
 		Sphere ground_spherer(glm::vec3(0.0f, -1000.0f, 0.0f), 1000.0f, ground_material);
 		uint32_t index = 0;
 		m_spheres.push_back(ground_spherer);
-		m_aabbs.push_back(ground_spherer.GetAABB());
+		m_aabbs.push_back({ ground_spherer.GetMinX(), ground_spherer.GetMinY(), ground_spherer.GetMinZ(), ground_spherer.GetMaxX(), ground_spherer.GetMaxY(), ground_spherer.GetMaxZ() });
 		m_indices.push_back(index++);
 
 		for (int a = -11; a < 11; a++) {
@@ -34,7 +34,7 @@ public:
 						sphere_material = Material(Material::Lambertian, albedo);
 						sphere.SetMaterial(sphere_material);
 						m_spheres.push_back(sphere);
-						m_aabbs.push_back(sphere.GetAABB());
+						m_aabbs.push_back({ sphere.GetMinX(), sphere.GetMinY(), sphere.GetMinZ(), sphere.GetMaxX(), sphere.GetMaxY(), sphere.GetMaxZ() });
 						m_indices.push_back(index++);
 					}
 					else if (choose_mat < 0.95) {
@@ -44,7 +44,7 @@ public:
 						sphere_material = Material(Material::Metal, albedo, fuzz);
 						sphere.SetMaterial(sphere_material);
 						m_spheres.push_back(sphere);
-						m_aabbs.push_back(sphere.GetAABB());
+						m_aabbs.push_back({ sphere.GetMinX(), sphere.GetMinY(), sphere.GetMinZ(), sphere.GetMaxX(), sphere.GetMaxY(), sphere.GetMaxZ() });
 						m_indices.push_back(index++);
 					}
 					else {
@@ -52,7 +52,7 @@ public:
 						sphere_material = Material(Material::Dielectric, glm::vec3(0.0f), 0.0f, 1.5);
 						sphere.SetMaterial(sphere_material);
 						m_spheres.push_back(sphere);
-						m_aabbs.push_back(sphere.GetAABB());
+						m_aabbs.push_back({ sphere.GetMinX(), sphere.GetMinY(), sphere.GetMinZ(), sphere.GetMaxX(), sphere.GetMaxY(), sphere.GetMaxZ() });
 						m_indices.push_back(index++);
 					}
 				}
@@ -62,19 +62,19 @@ public:
 		auto material1 = Material(Material::Dielectric, glm::vec3(0.0f), 0.0f, 1.5);
 		Sphere sphere(glm::vec3(0, 1, 0), 1.0, material1);
 		m_spheres.push_back(sphere);
-		m_aabbs.push_back(sphere.GetAABB());
+		m_aabbs.push_back({ sphere.GetMinX(), sphere.GetMinY(), sphere.GetMinZ(), sphere.GetMaxX(), sphere.GetMaxY(), sphere.GetMaxZ() });
 		m_indices.push_back(index++);
 
 		auto material2 = Material(Material::Lambertian, glm::vec3(0.4, 0.2, 0.1));
 		sphere = Sphere(glm::vec3(-4, 1, 0), 1.0, material2);
 		m_spheres.push_back(sphere);
-		m_aabbs.push_back(sphere.GetAABB());
+		m_aabbs.push_back({ sphere.GetMinX(), sphere.GetMinY(), sphere.GetMinZ(), sphere.GetMaxX(), sphere.GetMaxY(), sphere.GetMaxZ() });
 		m_indices.push_back(index++);
 
 		auto material3 = Material(Material::Metal, glm::vec3(0.7, 0.6, 0.5), 0.0);
 		sphere = Sphere(glm::vec3(4, 1, 0), 1.0, material3);
 		m_spheres.push_back(sphere);
-		m_aabbs.push_back(sphere.GetAABB());
+		m_aabbs.push_back({ sphere.GetMinX(), sphere.GetMinY(), sphere.GetMinZ(), sphere.GetMaxX(), sphere.GetMaxY(), sphere.GetMaxZ() });
 		m_indices.push_back(index++);
 
 	}

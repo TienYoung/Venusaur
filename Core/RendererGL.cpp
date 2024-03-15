@@ -225,8 +225,8 @@ namespace Venusaur
 		std::cout << std::endl;
 	}
 
-	RendererGL::RendererGL(BufferImageFormat image_format)
-		: m_image_format(image_format)
+	RendererGL::RendererGL(const int32_t screen_res_x, const int32_t screen_res_y, BufferImageFormat format)
+		: m_image_format(format)
 	{
 		// Init gl3w.
 		if (gl3wInit())
@@ -254,13 +254,16 @@ namespace Venusaur
 
 		// VBO
 		glCreateBuffers(1, &m_vbo);
-		glNamedBufferStorage(m_vao, sizeof(vertices), vertices, GL_DYNAMIC_STORAGE_BIT);
+		glNamedBufferStorage(m_vbo, sizeof(vertices), vertices, GL_DYNAMIC_STORAGE_BIT);
 
 		// 1st attribute buffer : vertices
 		glVertexArrayVertexBuffer(m_vao, 0, m_vbo, 0, sizeof(GLfloat) * 3);
 		glEnableVertexArrayAttrib(m_vao, 0);
 		glVertexArrayAttribFormat(m_vao, 0, 3, GL_FLOAT, GL_FALSE, 0);
 		glDisableVertexArrayAttrib(m_vao, 0);
+
+		m_program = createGLProgram(s_vert_source, s_frag_source);
+		m_render_tex_uniform_loc = getGLUniformLocation(m_program, "renderTex");
 
 		// Texture
 		glCreateTextures(GL_TEXTURE_2D, 1, &m_renderTex);
@@ -269,8 +272,29 @@ namespace Venusaur
 		glTextureParameteri(m_renderTex, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
 		glTextureParameteri(m_renderTex, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 
-		m_program = createGLProgram(s_vert_source, s_frag_source);
-		m_render_tex_uniform_loc = getGLUniformLocation(m_program, "renderTex");
+		size_t elmt_size = pixelFormatSize(m_image_format);
+		if (elmt_size % 8 == 0) glPixelStorei(GL_UNPACK_ALIGNMENT, 8);
+		else if (elmt_size % 4 == 0) glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
+		else if (elmt_size % 2 == 0) glPixelStorei(GL_UNPACK_ALIGNMENT, 2);
+		else                          glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+
+		bool convertToSrgb = true;
+
+		if (m_image_format == BufferImageFormat::UNSIGNED_BYTE4)
+		{
+			glTextureStorage2D(m_renderTex, 1, GL_RGBA8, screen_res_x, screen_res_y);
+		}
+		else if (m_image_format == BufferImageFormat::FLOAT3)
+		{
+			glTextureStorage2D(m_renderTex, 1, GL_RGB8_SNORM, screen_res_x, screen_res_y);
+		}
+		else if (m_image_format == BufferImageFormat::FLOAT4)
+		{
+			glTextureStorage2D(m_renderTex, 1, GL_RGBA8_SNORM, screen_res_x, screen_res_y);
+		}
+		else
+			throw Exception("Unknown buffer format");
+
 	}
 
 
@@ -308,19 +332,16 @@ namespace Venusaur
 
 			if (m_image_format == BufferImageFormat::UNSIGNED_BYTE4)
 			{
-				glTextureStorage2D(m_renderTex, 1, GL_RGBA8, screen_res_x, screen_res_y);
 				// input is assumed to be in sRGB since it is only 1 byte per channel in size
 				glTextureSubImage2D(m_renderTex, 0, 0, 0, screen_res_x, screen_res_y, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
 				convertToSrgb = false;
 			}
 			else if (m_image_format == BufferImageFormat::FLOAT3)
 			{
-				glTextureStorage2D(m_renderTex, 1, GL_RGB8_SNORM, screen_res_x, screen_res_y);
 				glTextureSubImage2D(m_renderTex, 0, 0, 0, screen_res_x, screen_res_y, GL_RGB, GL_FLOAT, nullptr);
 			}
 			else if (m_image_format == BufferImageFormat::FLOAT4)
 			{
-				glTextureStorage2D(m_renderTex, 1, GL_RGBA8_SNORM, screen_res_x, screen_res_y);
 				glTextureSubImage2D(m_renderTex, 0, 0, 0, screen_res_x, screen_res_y, GL_RGBA, GL_FLOAT, nullptr);
 			}
 			else
