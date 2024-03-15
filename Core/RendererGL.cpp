@@ -26,7 +26,6 @@
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
 
-#include "Exception.h"
 #include "RendererGL.h"
 
 #include <iostream>
@@ -35,259 +34,307 @@
 namespace Venusaur
 {
 
-//-----------------------------------------------------------------------------
-//
-// Helper functions
-//
-//-----------------------------------------------------------------------------
-namespace
-{
+	//-----------------------------------------------------------------------------
+	//
+	// Helper functions
+	//
+	//-----------------------------------------------------------------------------
+	namespace
+	{
 
-GLuint createGLShader( const std::string& source, GLuint shader_type )
-{
-	GLuint shader = glCreateShader( shader_type );
-    {
-        const GLchar* source_data= reinterpret_cast<const GLchar*>( source.data() );
-		glShaderSource( shader, 1, &source_data, nullptr );
-		glCompileShader( shader );
-
-		GLint is_compiled = 0;
-		glGetShaderiv( shader, GL_COMPILE_STATUS, &is_compiled );
-		if( is_compiled == GL_FALSE )
+		size_t pixelFormatSize(BufferImageFormat format)
 		{
-			GLint max_length = 0;
-			glGetShaderiv( shader, GL_INFO_LOG_LENGTH, &max_length );
-
-			std::string info_log( max_length, '\0' );
-            GLchar* info_log_data= reinterpret_cast<GLchar*>( &info_log[0]);
-			glGetShaderInfoLog( shader, max_length, nullptr, info_log_data );
-
-			glDeleteShader(shader);
-            std::cerr << "Compilation of shader failed: " << info_log << std::endl;
-
-			return 0;
+			switch (format)
+			{
+			case BufferImageFormat::UNSIGNED_BYTE4:
+				return sizeof(char) * 4;
+			case BufferImageFormat::FLOAT4:
+				return sizeof(float) * 4;
+			case BufferImageFormat::FLOAT3:
+				return sizeof(float) * 3;
+			default:
+				throw Exception("sutil::pixelFormatSize: Unrecognized buffer format");
+			}
 		}
+
+		GLuint createGLShader(const std::string& source, GLuint shader_type)
+		{
+			GLuint shader = glCreateShader(shader_type);
+			{
+				const GLchar* source_data = reinterpret_cast<const GLchar*>(source.data());
+				glShaderSource(shader, 1, &source_data, nullptr);
+				glCompileShader(shader);
+
+				GLint is_compiled = 0;
+				glGetShaderiv(shader, GL_COMPILE_STATUS, &is_compiled);
+				if (is_compiled == GL_FALSE)
+				{
+					GLint max_length = 0;
+					glGetShaderiv(shader, GL_INFO_LOG_LENGTH, &max_length);
+
+					std::string info_log(max_length, '\0');
+					GLchar* info_log_data = reinterpret_cast<GLchar*>(&info_log[0]);
+					glGetShaderInfoLog(shader, max_length, nullptr, info_log_data);
+
+					glDeleteShader(shader);
+					std::cerr << "Compilation of shader failed: " << info_log << std::endl;
+
+					return 0;
+				}
+			}
+
+			//GL_CHECK_ERRORS();
+
+			return shader;
+		}
+
+
+		GLuint createGLProgram(
+			const std::string& vert_source,
+			const std::string& frag_source
+		)
+		{
+			GLuint vert_shader = createGLShader(vert_source, GL_VERTEX_SHADER);
+			if (vert_shader == 0)
+				return 0;
+
+			GLuint frag_shader = createGLShader(frag_source, GL_FRAGMENT_SHADER);
+			if (frag_shader == 0)
+			{
+				glDeleteShader(vert_shader);
+				return 0;
+			}
+
+			GLuint program = glCreateProgram();
+			glAttachShader(program, vert_shader);
+			glAttachShader(program, frag_shader);
+			glLinkProgram(program);
+
+			GLint is_linked = 0;
+			glGetProgramiv(program, GL_LINK_STATUS, &is_linked);
+			if (is_linked == GL_FALSE)
+			{
+				GLint max_length = 0;
+				glGetProgramiv(program, GL_INFO_LOG_LENGTH, &max_length);
+
+				std::string info_log(max_length, '\0');
+				GLchar* info_log_data = reinterpret_cast<GLchar*>(&info_log[0]);
+				glGetProgramInfoLog(program, max_length, nullptr, info_log_data);
+				std::cerr << "Linking of program failed: " << info_log << std::endl;
+
+				glDeleteProgram(program);
+				glDeleteShader(vert_shader);
+				glDeleteShader(frag_shader);
+
+				return 0;
+			}
+
+			glDetachShader(program, vert_shader);
+			glDetachShader(program, frag_shader);
+
+			//GL_CHECK_ERRORS();
+
+			return program;
+		}
+
+
+		GLint getGLUniformLocation(GLuint program, const std::string& name)
+		{
+			GLint loc = glGetUniformLocation(program, name.c_str());
+			if (loc == -1) {
+				throw Exception(std::format("Failed to get uniform loc for '{}'", name).c_str());
+			}
+			return loc;
+		}
+
+	} // anonymous namespace
+
+
+	//-----------------------------------------------------------------------------
+	//
+	// GLDisplay implementation
+	//
+	//-----------------------------------------------------------------------------
+
+	const std::string RendererGL::s_vert_source = R"(
+		#version 460 core
+
+		layout(location = 0) in vec3 vertexPosition_modelspace;
+		out vec2 UV;
+
+		void main()
+		{
+			gl_Position =  vec4(vertexPosition_modelspace,1);
+			UV = (vec2( vertexPosition_modelspace.x, vertexPosition_modelspace.y )+vec2(1,1))/2.0;
+		}
+	)";
+
+	const std::string RendererGL::s_frag_source = R"(
+		#version 460 core
+
+		in vec2 UV;
+		out vec3 color;
+
+		uniform sampler2D renderTex;
+		uniform bool correct_gamma;
+
+		void main()
+		{
+			color = texture( renderTex, UV ).xyz;
+		}
+	)";
+
+	void APIENTRY MessageCallback(GLenum source, GLenum type, GLuint id, GLenum severity, GLsizei length, GLchar const* message, void const* user_param)
+	{
+		// ignore non-significant error/warning codes
+		if (id == 131169 || id == 131185 || id == 131218 || id == 131204) return;
+
+		std::cout << "---------------" << std::endl;
+		std::cout << "Debug message (" << id << "): " << message << std::endl;
+
+		switch (source)
+		{
+		case GL_DEBUG_SOURCE_API:             std::cout << "Source: API"; break;
+		case GL_DEBUG_SOURCE_WINDOW_SYSTEM:   std::cout << "Source: Window System"; break;
+		case GL_DEBUG_SOURCE_SHADER_COMPILER: std::cout << "Source: Shader Compiler"; break;
+		case GL_DEBUG_SOURCE_THIRD_PARTY:     std::cout << "Source: Third Party"; break;
+		case GL_DEBUG_SOURCE_APPLICATION:     std::cout << "Source: Application"; break;
+		case GL_DEBUG_SOURCE_OTHER:           std::cout << "Source: Other"; break;
+		} std::cout << std::endl;
+
+		switch (type)
+		{
+		case GL_DEBUG_TYPE_ERROR:               std::cout << "Type: Error"; break;
+		case GL_DEBUG_TYPE_DEPRECATED_BEHAVIOR: std::cout << "Type: Deprecated Behavior"; break;
+		case GL_DEBUG_TYPE_UNDEFINED_BEHAVIOR:  std::cout << "Type: Undefined Behavior"; break;
+		case GL_DEBUG_TYPE_PORTABILITY:         std::cout << "Type: Portability"; break;
+		case GL_DEBUG_TYPE_PERFORMANCE:         std::cout << "Type: Performance"; break;
+		case GL_DEBUG_TYPE_MARKER:              std::cout << "Type: Marker"; break;
+		case GL_DEBUG_TYPE_PUSH_GROUP:          std::cout << "Type: Push Group"; break;
+		case GL_DEBUG_TYPE_POP_GROUP:           std::cout << "Type: Pop Group"; break;
+		case GL_DEBUG_TYPE_OTHER:               std::cout << "Type: Other"; break;
+		} std::cout << std::endl;
+
+		switch (severity)
+		{
+		case GL_DEBUG_SEVERITY_HIGH:         std::cout << "Severity: high"; break;
+		case GL_DEBUG_SEVERITY_MEDIUM:       std::cout << "Severity: medium"; break;
+		case GL_DEBUG_SEVERITY_LOW:          std::cout << "Severity: low"; break;
+		case GL_DEBUG_SEVERITY_NOTIFICATION: std::cout << "Severity: notification"; break;
+		} std::cout << std::endl;
+		std::cout << std::endl;
 	}
 
-    //GL_CHECK_ERRORS();
+	RendererGL::RendererGL(BufferImageFormat image_format)
+		: m_image_format(image_format)
+	{
+		// Init gl3w.
+		if (gl3wInit())
+		{
+			throw Exception("Failed to initialize GL");
+		}
 
-    return shader;
-}
+		glEnable(GL_DEBUG_OUTPUT);
+		glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
+		glDebugMessageCallback(MessageCallback, nullptr);
+		glDebugMessageControl(GL_DONT_CARE, GL_DONT_CARE, GL_DONT_CARE, 0, nullptr, GL_TRUE);
 
+		static const GLfloat vertices[] = {
+			-1.0f, -1.0f, 0.0f,
+			 1.0f, -1.0f, 0.0f,
+			-1.0f,  1.0f, 0.0f,
 
-GLuint createGLProgram(
-		const std::string& vert_source,
-		const std::string& frag_source
-		)
-{
-    GLuint vert_shader = createGLShader( vert_source, GL_VERTEX_SHADER );
-    if( vert_shader == 0 )
-        return 0;
+			-1.0f,  1.0f, 0.0f,
+			 1.0f, -1.0f, 0.0f,
+			 1.0f,  1.0f, 0.0f,
+		};
 
-    GLuint frag_shader = createGLShader( frag_source, GL_FRAGMENT_SHADER );
-    if( frag_shader == 0 )
-    {
-        glDeleteShader( vert_shader );
-        return 0;
-    }
+		// VAO
+		GLuint vao;
+		glCreateVertexArrays(1, &vao);
 
-    GLuint program = glCreateProgram();
-    glAttachShader( program, vert_shader );
-    glAttachShader( program, frag_shader );
-    glLinkProgram( program );
+		// VBO
+		glCreateBuffers(1, &m_vbo);
+		glNamedBufferStorage(vao, sizeof(vertices), vertices, GL_DYNAMIC_STORAGE_BIT);
 
-    GLint is_linked = 0;
-    glGetProgramiv( program, GL_LINK_STATUS, &is_linked );
-    if (is_linked == GL_FALSE)
-    {
-        GLint max_length = 0;
-        glGetProgramiv( program, GL_INFO_LOG_LENGTH, &max_length );
+		// 1st attribute buffer : vertices
+		glVertexArrayVertexBuffer(vao, 0, m_vbo, 0, sizeof(GLfloat) * 3);
+		glEnableVertexArrayAttrib(vao, 0);
+		glVertexArrayAttribFormat(vao, 0, 3, GL_FLOAT, GL_FALSE, 0);
+		glDisableVertexArrayAttrib(vao, 0);
 
-        std::string info_log( max_length, '\0' );
-        GLchar* info_log_data= reinterpret_cast<GLchar*>( &info_log[0]);
-        glGetProgramInfoLog( program, max_length, nullptr, info_log_data );
-        std::cerr << "Linking of program failed: " << info_log << std::endl;
+		// Texture
+		glCreateTextures(GL_TEXTURE_2D, 1, &m_renderTex);
+		glTextureParameteri(m_renderTex, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+		glTextureParameteri(m_renderTex, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+		glTextureParameteri(m_renderTex, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+		glTextureParameteri(m_renderTex, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 
-        glDeleteProgram( program );
-        glDeleteShader( vert_shader );
-        glDeleteShader( frag_shader );
-
-        return 0;
-    }
-
-    glDetachShader( program, vert_shader );
-    glDetachShader( program, frag_shader );
-
-    //GL_CHECK_ERRORS();
-
-    return program;
-}
+		m_program = createGLProgram(s_vert_source, s_frag_source);
+		m_render_tex_uniform_loc = getGLUniformLocation(m_program, "renderTex");
+	}
 
 
-GLint getGLUniformLocation( GLuint program, const std::string& name )
-{
-	GLint loc = glGetUniformLocation( program, name.c_str() );
-    if (loc == -1) {
-        std::cout << std::format("Failed to get uniform loc for '{}'", name);
-        //TODO: throw Exception()
-    }
-    return loc;
-}
+	void RendererGL::Display(
+		const int32_t  screen_res_x,
+		const int32_t  screen_res_y,
+		const int32_t  framebuf_res_x,
+		const int32_t  framebuf_res_y,
+		const uint32_t pbo
+	) const
+	{
+		glBindFramebuffer(GL_FRAMEBUFFER, 0);
+		glViewport(0, 0, framebuf_res_x, framebuf_res_y);
 
-} // anonymous namespace
+		GLfloat clearColor[] = { 0.3f, 0.2f, 0.6f, 1.0f };
+		GLfloat clearDepth = 0.0f;
+		GLint clearStencil = 0;
+		glClearNamedFramebufferfv(0, GL_COLOR, 0, clearColor);
+		glClearNamedFramebufferfi(0, GL_DEPTH, 0, clearDepth, clearStencil);
 
+		glUseProgram(m_program);
 
-//-----------------------------------------------------------------------------
-//
-// GLDisplay implementation
-//
-//-----------------------------------------------------------------------------
+		// Bind our texture in Texture Unit 0
+		glBindTextureUnit(0, m_renderTex);
+		glBindBuffer(GL_PIXEL_UNPACK_BUFFER, pbo);
 
-const std::string RendererGL::s_vert_source = R"(
-#version 330 core
+		size_t elmt_size = pixelFormatSize(m_image_format);
+		if (elmt_size % 8 == 0) glPixelStorei(GL_UNPACK_ALIGNMENT, 8);
+		else if (elmt_size % 4 == 0) glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
+		else if (elmt_size % 2 == 0) glPixelStorei(GL_UNPACK_ALIGNMENT, 2);
+		else                          glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
 
-layout(location = 0) in vec3 vertexPosition_modelspace;
-out vec2 UV;
+		bool convertToSrgb = true;
 
-void main()
-{
-	gl_Position =  vec4(vertexPosition_modelspace,1);
-	UV = (vec2( vertexPosition_modelspace.x, vertexPosition_modelspace.y )+vec2(1,1))/2.0;
-}
-)";
+		if (m_image_format == BufferImageFormat::UNSIGNED_BYTE4)
+		{
+			// input is assumed to be in sRGB since it is only 1 byte per channel in size
+			glTextureSubImage2D(m_renderTex, 0, 0, 0, screen_res_x, screen_res_y, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+			convertToSrgb = false;
+		}
+		else if (m_image_format == BufferImageFormat::FLOAT3)
+			glTextureSubImage2D(m_renderTex, 0, 0, 0, screen_res_x, screen_res_y, GL_RGB, GL_FLOAT, nullptr);
 
-const std::string RendererGL::s_frag_source = R"(
-#version 330 core
+		else if (m_image_format == BufferImageFormat::FLOAT4)
+			glTextureSubImage2D(m_renderTex, 0, 0, 0, screen_res_x, screen_res_y, GL_RGBA, GL_FLOAT, nullptr);
+		else
+			throw Exception("Unknown buffer format");
 
-in vec2 UV;
-out vec3 color;
+		glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
+		glUniform1i(m_render_tex_uniform_loc, 0);
 
-uniform sampler2D render_tex;
-uniform bool correct_gamma;
+		if (convertToSrgb)
+			glEnable(GL_FRAMEBUFFER_SRGB);
+		else
+			glDisable(GL_FRAMEBUFFER_SRGB);
 
-void main()
-{
-    color = texture( render_tex, UV ).xyz;
-}
-)";
+		// Draw the triangles !
+		//glBindVertexArray(vao);
+		glDrawArrays(GL_TRIANGLES, 0, 6); // 2*3 indices starting at 0 -> 2 triangles
 
+		glDisable(GL_FRAMEBUFFER_SRGB);
 
-
-RendererGL::RendererGL( BufferImageFormat image_format )
-    : m_image_format( image_format )
-{
-    GLuint m_vertex_array;
-    ( glGenVertexArrays(1, &m_vertex_array ) );
-    ( glBindVertexArray( m_vertex_array ) );
-
-	m_program = createGLProgram( s_vert_source, s_frag_source );
-	m_render_tex_uniform_loc = getGLUniformLocation( m_program, "render_tex");
-
-    ( glGenTextures( 1, &m_render_tex ) );
-    ( glBindTexture( GL_TEXTURE_2D, m_render_tex ) );
-
-    ( glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST ) );
-    ( glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST ) );
-    ( glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE ) );
-    ( glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE ) );
-
-	static const GLfloat g_quad_vertex_buffer_data[] = {
-		-1.0f, -1.0f, 0.0f,
-		 1.0f, -1.0f, 0.0f,
-		-1.0f,  1.0f, 0.0f,
-
-		-1.0f,  1.0f, 0.0f,
-		 1.0f, -1.0f, 0.0f,
-		 1.0f,  1.0f, 0.0f,
-	};
-
-	( glGenBuffers( 1, &m_quad_vertex_buffer ) );
-	( glBindBuffer( GL_ARRAY_BUFFER, m_quad_vertex_buffer ) );
-	( glBufferData( GL_ARRAY_BUFFER,
-            sizeof( g_quad_vertex_buffer_data),
-            g_quad_vertex_buffer_data,
-            GL_STATIC_DRAW
-            )
-        );
-
-    //GL_CHECK_ERRORS();
-}
-
-
-void RendererGL::display(
-        const int32_t  screen_res_x,
-        const int32_t  screen_res_y,
-        const int32_t  framebuf_res_x,
-        const int32_t  framebuf_res_y,
-        const uint32_t pbo
-        ) const
-{
-    ( glBindFramebuffer( GL_FRAMEBUFFER, 0 ) );
-    ( glViewport( 0, 0, framebuf_res_x, framebuf_res_y ) );
-
-    ( glClear( GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT ) );
-
-    ( glUseProgram( m_program ) );
-
-    // Bind our texture in Texture Unit 0
-    ( glActiveTexture( GL_TEXTURE0 ) );
-    ( glBindTexture( GL_TEXTURE_2D, m_render_tex ) );
-    ( glBindBuffer( GL_PIXEL_UNPACK_BUFFER, pbo ) );
-
-    ( glPixelStorei(GL_UNPACK_ALIGNMENT, 4) ); // TODO!!!!!!
-
-    size_t elmt_size = pixelFormatSize(m_image_format);
-    if      ( elmt_size % 8 == 0) glPixelStorei(GL_UNPACK_ALIGNMENT, 8);
-    else if ( elmt_size % 4 == 0) glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
-    else if ( elmt_size % 2 == 0) glPixelStorei(GL_UNPACK_ALIGNMENT, 2);
-    else                          glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
-
-    bool convertToSrgb = true;
-
-    if( m_image_format == BufferImageFormat::UNSIGNED_BYTE4 )
-    {
-        // input is assumed to be in srgb since it is only 1 byte per channel in size
-        glTexImage2D( GL_TEXTURE_2D, 0, GL_RGBA8,   screen_res_x, screen_res_y, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr );
-        convertToSrgb = false;
-    }
-    else if( m_image_format == BufferImageFormat::FLOAT3 )
-        glTexImage2D( GL_TEXTURE_2D, 0, GL_RGB32F,  screen_res_x, screen_res_y, 0, GL_RGB,  GL_FLOAT,         nullptr );
-
-    else if( m_image_format == BufferImageFormat::FLOAT4 )
-        glTexImage2D( GL_TEXTURE_2D, 0, GL_RGBA32F, screen_res_x, screen_res_y, 0, GL_RGBA, GL_FLOAT,         nullptr );
-
-    //else
-    //    throw Exception( "Unknown buffer format" );
-
-    ( glBindBuffer( GL_PIXEL_UNPACK_BUFFER, 0 ) );
-    ( glUniform1i( m_render_tex_uniform_loc , 0 ) );
-
-    // 1st attribute buffer : vertices
-    ( glEnableVertexAttribArray( 0 ) );
-    ( glBindBuffer(GL_ARRAY_BUFFER, m_quad_vertex_buffer ) );
-    ( glVertexAttribPointer(
-            0,                  // attribute 0. No particular reason for 0, but must match the layout in the shader.
-            3,                  // size
-            GL_FLOAT,           // type
-            GL_FALSE,           // normalized?
-            0,                  // stride
-            (void*)0            // array buffer offset
-            )
-        );
-
-    if( convertToSrgb )
-        ( glEnable( GL_FRAMEBUFFER_SRGB ) );
-    else 
-        ( glDisable( GL_FRAMEBUFFER_SRGB ) );
-
-    // Draw the triangles !
-    ( glDrawArrays(GL_TRIANGLES, 0, 6) ); // 2*3 indices starting at 0 -> 2 triangles
-
-    ( glDisableVertexAttribArray(0) );
-
-    ( glDisable( GL_FRAMEBUFFER_SRGB ) );
-
-    //GL_CHECK_ERRORS();
-}
+		//GL_CHECK_ERRORS();
+	}
 
 } // namespace sutil

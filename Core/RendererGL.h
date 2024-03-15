@@ -30,10 +30,12 @@
 
 #pragma once
 
-#include <GL/gl3w.h>
-
 #include <cstdint>
 #include <string>
+
+#include <GL/gl3w.h>
+
+#include "Exception.h"
 
 namespace Venusaur
 {
@@ -45,28 +47,13 @@ namespace Venusaur
 		FLOAT3
 	};
 
-	size_t pixelFormatSize(BufferImageFormat format)
-	{
-		switch (format)
-		{
-		case BufferImageFormat::UNSIGNED_BYTE4:
-			return sizeof(char) * 4;
-		case BufferImageFormat::FLOAT4:
-			return sizeof(float) * 4;
-		case BufferImageFormat::FLOAT3:
-			return sizeof(float) * 3;
-		default:
-			return 0;
-		}
-	}
-
 	class RendererGL
 	{
 	public:
 		RendererGL(
 			BufferImageFormat format = BufferImageFormat::UNSIGNED_BYTE4);
 
-		void display(
+		void Display(
 			const int32_t  screen_res_x,
 			const int32_t  screen_res_y,
 			const int32_t  framebuf_res_x,
@@ -74,10 +61,10 @@ namespace Venusaur
 			const uint32_t pbo) const;
 
 	private:
-		GLuint   m_render_tex = 0u;
+		GLuint   m_renderTex = 0u;
 		GLuint   m_program = 0u;
 		GLint    m_render_tex_uniform_loc = -1;
-		GLuint   m_quad_vertex_buffer = 0;
+		GLuint   m_vbo = 0;
 
 		BufferImageFormat m_image_format;
 
