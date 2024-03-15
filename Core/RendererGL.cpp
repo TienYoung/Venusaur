@@ -306,15 +306,21 @@ namespace Venusaur
 
 		if (m_image_format == BufferImageFormat::UNSIGNED_BYTE4)
 		{
+			glTextureStorage2D(m_renderTex, 1, GL_RGBA8, screen_res_x, screen_res_y);
 			// input is assumed to be in sRGB since it is only 1 byte per channel in size
 			glTextureSubImage2D(m_renderTex, 0, 0, 0, screen_res_x, screen_res_y, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
 			convertToSrgb = false;
 		}
 		else if (m_image_format == BufferImageFormat::FLOAT3)
+		{
+			glTextureStorage2D(m_renderTex, 1, GL_RGB8_SNORM, screen_res_x, screen_res_y);
 			glTextureSubImage2D(m_renderTex, 0, 0, 0, screen_res_x, screen_res_y, GL_RGB, GL_FLOAT, nullptr);
-
-		else if (m_image_format == BufferImageFormat::FLOAT4)
+		}
+		else if (m_image_format == BufferImageFormat::FLOAT4) 
+		{
+			glTextureStorage2D(m_renderTex, 1, GL_RGBA8_SNORM, screen_res_x, screen_res_y);
 			glTextureSubImage2D(m_renderTex, 0, 0, 0, screen_res_x, screen_res_y, GL_RGBA, GL_FLOAT, nullptr);
+		}
 		else
 			throw Exception("Unknown buffer format");
 
