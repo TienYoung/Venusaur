@@ -292,45 +292,48 @@ namespace Venusaur
 
 		glUseProgram(m_program);
 
-		// Bind our texture in Texture Unit 0
-		glBindTextureUnit(0, m_renderTex);
-		glBindBuffer(GL_PIXEL_UNPACK_BUFFER, pbo);
-
-		size_t elmt_size = pixelFormatSize(m_image_format);
-		if (elmt_size % 8 == 0) glPixelStorei(GL_UNPACK_ALIGNMENT, 8);
-		else if (elmt_size % 4 == 0) glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
-		else if (elmt_size % 2 == 0) glPixelStorei(GL_UNPACK_ALIGNMENT, 2);
-		else                          glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
-
-		bool convertToSrgb = true;
-
-		if (m_image_format == BufferImageFormat::UNSIGNED_BYTE4)
+		if (pbo != 0)
 		{
-			glTextureStorage2D(m_renderTex, 1, GL_RGBA8, screen_res_x, screen_res_y);
-			// input is assumed to be in sRGB since it is only 1 byte per channel in size
-			glTextureSubImage2D(m_renderTex, 0, 0, 0, screen_res_x, screen_res_y, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
-			convertToSrgb = false;
-		}
-		else if (m_image_format == BufferImageFormat::FLOAT3)
-		{
-			glTextureStorage2D(m_renderTex, 1, GL_RGB8_SNORM, screen_res_x, screen_res_y);
-			glTextureSubImage2D(m_renderTex, 0, 0, 0, screen_res_x, screen_res_y, GL_RGB, GL_FLOAT, nullptr);
-		}
-		else if (m_image_format == BufferImageFormat::FLOAT4) 
-		{
-			glTextureStorage2D(m_renderTex, 1, GL_RGBA8_SNORM, screen_res_x, screen_res_y);
-			glTextureSubImage2D(m_renderTex, 0, 0, 0, screen_res_x, screen_res_y, GL_RGBA, GL_FLOAT, nullptr);
-		}
-		else
-			throw Exception("Unknown buffer format");
+			// Bind our texture in Texture Unit 0
+			glBindTextureUnit(0, m_renderTex);
+			glBindBuffer(GL_PIXEL_UNPACK_BUFFER, pbo);
 
-		glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
-		glUniform1i(m_render_tex_uniform_loc, 0);
+			size_t elmt_size = pixelFormatSize(m_image_format);
+			if (elmt_size % 8 == 0) glPixelStorei(GL_UNPACK_ALIGNMENT, 8);
+			else if (elmt_size % 4 == 0) glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
+			else if (elmt_size % 2 == 0) glPixelStorei(GL_UNPACK_ALIGNMENT, 2);
+			else                          glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
 
-		if (convertToSrgb)
-			glEnable(GL_FRAMEBUFFER_SRGB);
-		else
-			glDisable(GL_FRAMEBUFFER_SRGB);
+			bool convertToSrgb = true;
+
+			if (m_image_format == BufferImageFormat::UNSIGNED_BYTE4)
+			{
+				glTextureStorage2D(m_renderTex, 1, GL_RGBA8, screen_res_x, screen_res_y);
+				// input is assumed to be in sRGB since it is only 1 byte per channel in size
+				glTextureSubImage2D(m_renderTex, 0, 0, 0, screen_res_x, screen_res_y, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+				convertToSrgb = false;
+			}
+			else if (m_image_format == BufferImageFormat::FLOAT3)
+			{
+				glTextureStorage2D(m_renderTex, 1, GL_RGB8_SNORM, screen_res_x, screen_res_y);
+				glTextureSubImage2D(m_renderTex, 0, 0, 0, screen_res_x, screen_res_y, GL_RGB, GL_FLOAT, nullptr);
+			}
+			else if (m_image_format == BufferImageFormat::FLOAT4)
+			{
+				glTextureStorage2D(m_renderTex, 1, GL_RGBA8_SNORM, screen_res_x, screen_res_y);
+				glTextureSubImage2D(m_renderTex, 0, 0, 0, screen_res_x, screen_res_y, GL_RGBA, GL_FLOAT, nullptr);
+			}
+			else
+				throw Exception("Unknown buffer format");
+
+			glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
+			glUniform1i(m_render_tex_uniform_loc, 0);
+
+			if (convertToSrgb)
+				glEnable(GL_FRAMEBUFFER_SRGB);
+			else
+				glDisable(GL_FRAMEBUFFER_SRGB);
+		}
 
 		// Draw the triangles !
 		glBindVertexArray(m_vao);
