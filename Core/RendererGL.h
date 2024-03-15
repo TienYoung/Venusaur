@@ -65,6 +65,7 @@ namespace Venusaur
 		GLuint   m_program = 0u;
 		GLint    m_render_tex_uniform_loc = -1;
 		GLuint   m_vbo = 0;
+		GLuint   m_vao = 0;
 
 		BufferImageFormat m_image_format;
 

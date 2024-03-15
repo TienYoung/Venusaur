@@ -250,18 +250,17 @@ namespace Venusaur
 		};
 
 		// VAO
-		GLuint vao;
-		glCreateVertexArrays(1, &vao);
+		glCreateVertexArrays(1, &m_vao);
 
 		// VBO
 		glCreateBuffers(1, &m_vbo);
-		glNamedBufferStorage(vao, sizeof(vertices), vertices, GL_DYNAMIC_STORAGE_BIT);
+		glNamedBufferStorage(m_vao, sizeof(vertices), vertices, GL_DYNAMIC_STORAGE_BIT);
 
 		// 1st attribute buffer : vertices
-		glVertexArrayVertexBuffer(vao, 0, m_vbo, 0, sizeof(GLfloat) * 3);
-		glEnableVertexArrayAttrib(vao, 0);
-		glVertexArrayAttribFormat(vao, 0, 3, GL_FLOAT, GL_FALSE, 0);
-		glDisableVertexArrayAttrib(vao, 0);
+		glVertexArrayVertexBuffer(m_vao, 0, m_vbo, 0, sizeof(GLfloat) * 3);
+		glEnableVertexArrayAttrib(m_vao, 0);
+		glVertexArrayAttribFormat(m_vao, 0, 3, GL_FLOAT, GL_FALSE, 0);
+		glDisableVertexArrayAttrib(m_vao, 0);
 
 		// Texture
 		glCreateTextures(GL_TEXTURE_2D, 1, &m_renderTex);
@@ -288,9 +287,8 @@ namespace Venusaur
 
 		GLfloat clearColor[] = { 0.3f, 0.2f, 0.6f, 1.0f };
 		GLfloat clearDepth = 0.0f;
-		GLint clearStencil = 0;
 		glClearNamedFramebufferfv(0, GL_COLOR, 0, clearColor);
-		glClearNamedFramebufferfi(0, GL_DEPTH, 0, clearDepth, clearStencil);
+		glClearNamedFramebufferfv(0, GL_DEPTH, 0, &clearDepth);
 
 		glUseProgram(m_program);
 
@@ -329,7 +327,7 @@ namespace Venusaur
 			glDisable(GL_FRAMEBUFFER_SRGB);
 
 		// Draw the triangles !
-		//glBindVertexArray(vao);
+		glBindVertexArray(m_vao);
 		glDrawArrays(GL_TRIANGLES, 0, 6); // 2*3 indices starting at 0 -> 2 triangles
 
 		glDisable(GL_FRAMEBUFFER_SRGB);

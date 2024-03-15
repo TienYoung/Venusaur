@@ -233,7 +233,7 @@ int main(int argc, char* argv[])
 		GLuint pbo = outputBuffer.getPBO();
 #endif
 
-		rendererGL->Display(width, height, width, height, -1);
+		rendererGL->Display(width, height, width, height, 0);
 
 		ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData()); 
 
