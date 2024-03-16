@@ -26,7 +26,7 @@
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
 
-#include "RendererGL.h"
+#include "RendererOpenGL.h"
 
 #include <iostream>
 #include <format>
@@ -156,7 +156,7 @@ namespace Venusaur
 	//
 	//-----------------------------------------------------------------------------
 
-	const std::string RendererGL::s_vert_source = R"(
+	const std::string RendererOpenGL::s_vert_source = R"(
 		#version 460 core
 
 		layout(location = 0) in vec3 vertexPosition_modelspace;
@@ -169,7 +169,7 @@ namespace Venusaur
 		}
 	)";
 
-	const std::string RendererGL::s_frag_source = R"(
+	const std::string RendererOpenGL::s_frag_source = R"(
 		#version 460 core
 
 		in vec2 UV;
@@ -225,7 +225,7 @@ namespace Venusaur
 		std::cout << std::endl;
 	}
 
-	RendererGL::RendererGL(const int32_t screen_res_x, const int32_t screen_res_y, BufferImageFormat format)
+	RendererOpenGL::RendererOpenGL(const int32_t screen_res_x, const int32_t screen_res_y, BufferImageFormat format)
 		: m_image_format(format), m_width(screen_res_x), m_height(screen_res_y)
 	{
 		// Init gl3w.
@@ -298,7 +298,7 @@ namespace Venusaur
 	}
 
 
-	void RendererGL::Draw() const
+	void RendererOpenGL::Draw() const
 	{
 		glBindFramebuffer(GL_FRAMEBUFFER, 0);
 		glViewport(0, 0, m_width, m_height);

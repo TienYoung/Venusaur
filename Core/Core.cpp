@@ -9,8 +9,6 @@
 
 #include <glm/glm.hpp>
 
-#include "RendererGL.h"
-#include "RendererOptix.h"
 #include "Application.h"
 
 
@@ -28,8 +26,6 @@ Camera camera(lookfrom, 20.0f, aspect_ratio, aperture, dist_to_focus);
 Scene scene;
 std::shared_ptr<Venusaur::RendererOptix> rendererOptix;
 #endif
-std::shared_ptr<Venusaur::RendererGL> rendererGL;
-
 std::shared_ptr<Venusaur::Application> app;
 
 int main(int argc, char* argv[])
@@ -41,19 +37,6 @@ int main(int argc, char* argv[])
 #endif
 
 	app = std::make_shared<Venusaur::Application>();
-
-	// Init gl3w.
-	try
-	{
-		rendererGL = std::make_shared<Venusaur::RendererGL>(image_width, image_height);
-	}
-	catch(const std::exception& e)
-	{
-		std::cerr << e.what() << std::endl;
-		return -1;
-	}
-
-	app->AddRenderer(rendererGL);
 
 #ifdef ENABLE_OPTIX
 	// Init Optix.

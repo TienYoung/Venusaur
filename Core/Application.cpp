@@ -8,6 +8,8 @@
 
 #include "Exception.h"
 
+#include "RendererOpenGL.h"
+#include "RendererOptix.h"
 
 Venusaur::Application::Application(int width, int height, const char* title) 
 	: m_width(width), m_height(height)
@@ -33,6 +35,9 @@ Venusaur::Application::Application(int width, int height, const char* title)
 	glfwSetKeyCallback(m_window, s_KeyCallback);
 	glfwMakeContextCurrent(m_window);
 	glfwSwapInterval(1);
+
+	// Init gl3w.
+	m_rendererOpenGL = std::make_shared<RendererOpenGL>(m_width, m_width);
 
 	// Init ImGui.
 	IMGUI_CHECKVERSION();
@@ -73,14 +78,11 @@ void Venusaur::Application::Update()
 	ImGui::Begin("Debugging", nullptr);
 	ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.0f, 0.6f, 0.1f, 1.0f));
 
-	for (const auto& renderer : m_renderers)
-	{
-		begin = std::chrono::steady_clock::now();
-		renderer->Draw();
-		end = std::chrono::steady_clock::now();
-		durationMS = end - begin;
-		ImGui::Text("%s:\t%.2fms", renderer->GetName(), durationMS.count());
-	}
+	begin = std::chrono::steady_clock::now();
+	m_rendererOpenGL->Draw();
+	end = std::chrono::steady_clock::now();
+	durationMS = end - begin;
+	ImGui::Text("OpenGL:\t%.2fms", durationMS.count());
 	
 	ImGui::PopStyleColor();
 	ImGui::End();

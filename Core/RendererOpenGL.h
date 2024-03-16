@@ -48,10 +48,10 @@ namespace Venusaur
 		FLOAT3
 	};
 
-	class RendererGL : public IDrawable
+	class RendererOpenGL : public IDrawable
 	{
 	public:
-		RendererGL(const int32_t screen_res_x, const int32_t screen_res_y, BufferImageFormat format = BufferImageFormat::UNSIGNED_BYTE4);
+		RendererOpenGL(const int32_t screen_res_x, const int32_t screen_res_y, BufferImageFormat format = BufferImageFormat::UNSIGNED_BYTE4);
 
 		void Draw() const override;
 

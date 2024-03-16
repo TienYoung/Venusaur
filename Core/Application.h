@@ -6,13 +6,13 @@
 #define GLFW_INCLUDE_NONE
 #include <GLFW/glfw3.h>
 
-#include "Interfaces.h"
-
 namespace Venusaur
 {
+	class RendererOpenGL;
+	class RendererOptix;
+
 	class Application
 	{
-
 		static void s_ErrorCallback(int error, const char* description)
 		{
 			std::cerr << "GLFW Error " << error << ": " << description << std::endl;
@@ -86,8 +86,6 @@ namespace Venusaur
 		Application(int width = 1280, int height = 800, const char* title = "Venusaur");
 		~Application();
 
-		void AddRenderer(std::shared_ptr<IDrawable> renderer) { m_renderers.push_back(renderer); }
-
 		void Update();
 		bool IsRunning() { return glfwWindowShouldClose(m_window) == GLFW_FALSE; }
 	private:
@@ -95,6 +93,7 @@ namespace Venusaur
 		int m_width;
 		int m_height;
 
-		std::vector<std::shared_ptr<IDrawable>> m_renderers;
+		std::shared_ptr<RendererOpenGL> m_rendererOpenGL;
+		std::shared_ptr<RendererOptix> m_rendererOptix;
 	};
 }
