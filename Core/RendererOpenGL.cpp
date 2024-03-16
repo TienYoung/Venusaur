@@ -279,7 +279,6 @@ namespace Venusaur
 
 	void RendererOpenGL::Draw() const
 	{
-		glBindFramebuffer(GL_FRAMEBUFFER, 0);
 		glViewport(0, 0, m_width, m_height);
 
 		GLfloat clearColor[] = { 0.3f, 0.2f, 0.6f, 1.0f };
