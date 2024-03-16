@@ -159,13 +159,12 @@ namespace Venusaur
 	const std::string RendererOpenGL::s_vert_source = R"(
 		#version 460 core
 
-		layout(location = 0) in vec3 vertexPosition_modelspace;
 		out vec2 UV;
 
 		void main()
 		{
-			gl_Position =  vec4(vertexPosition_modelspace,1);
-			UV = (vec2( vertexPosition_modelspace.x, vertexPosition_modelspace.y )+vec2(1,1))/2.0;
+			UV = vec2((gl_VertexID << 1) & 2, gl_VertexID & 2);
+			gl_Position = vec4(UV * 2 - 1, 0, 1);
 		}
 	)";
 
@@ -225,8 +224,8 @@ namespace Venusaur
 		std::cout << std::endl;
 	}
 
-	RendererOpenGL::RendererOpenGL(const int32_t screen_res_x, const int32_t screen_res_y, BufferImageFormat format)
-		: m_image_format(format), m_width(screen_res_x), m_height(screen_res_y)
+	RendererOpenGL::RendererOpenGL(const int32_t width, const int32_t height, BufferImageFormat format)
+		: m_image_format(format), m_width(width), m_height(height)
 	{
 		// Init gl3w.
 		if (gl3wInit())
@@ -239,28 +238,8 @@ namespace Venusaur
 		glDebugMessageCallback(MessageCallback, nullptr);
 		glDebugMessageControl(GL_DONT_CARE, GL_DONT_CARE, GL_DONT_CARE, 0, nullptr, GL_TRUE);
 
-		static const GLfloat vertices[] = {
-			-1.0f, -1.0f, 0.0f,
-			 1.0f, -1.0f, 0.0f,
-			-1.0f,  1.0f, 0.0f,
-
-			-1.0f,  1.0f, 0.0f,
-			 1.0f, -1.0f, 0.0f,
-			 1.0f,  1.0f, 0.0f,
-		};
-
-		// VAO
+		// Empty VAO
 		glCreateVertexArrays(1, &m_vao);
-
-		// VBO
-		glCreateBuffers(1, &m_vbo);
-		glNamedBufferStorage(m_vbo, sizeof(vertices), vertices, GL_DYNAMIC_STORAGE_BIT);
-
-		// 1st attribute buffer : vertices
-		glVertexArrayVertexBuffer(m_vao, 0, m_vbo, 0, sizeof(GLfloat) * 3);
-		glEnableVertexArrayAttrib(m_vao, 0);
-		glVertexArrayAttribFormat(m_vao, 0, 3, GL_FLOAT, GL_FALSE, 0);
-		glDisableVertexArrayAttrib(m_vao, 0);
 
 		m_program = createGLProgram(s_vert_source, s_frag_source);
 		m_render_tex_uniform_loc = getGLUniformLocation(m_program, "renderTex");
@@ -282,15 +261,15 @@ namespace Venusaur
 
 		if (m_image_format == BufferImageFormat::UNSIGNED_BYTE4)
 		{
-			glTextureStorage2D(m_renderTex, 1, GL_RGBA8, screen_res_x, screen_res_y);
+			glTextureStorage2D(m_renderTex, 1, GL_RGBA8, m_width, m_height);
 		}
 		else if (m_image_format == BufferImageFormat::FLOAT3)
 		{
-			glTextureStorage2D(m_renderTex, 1, GL_RGB8_SNORM, screen_res_x, screen_res_y);
+			glTextureStorage2D(m_renderTex, 1, GL_RGB8_SNORM, m_width, m_height);
 		}
 		else if (m_image_format == BufferImageFormat::FLOAT4)
 		{
-			glTextureStorage2D(m_renderTex, 1, GL_RGBA8_SNORM, screen_res_x, screen_res_y);
+			glTextureStorage2D(m_renderTex, 1, GL_RGBA8_SNORM, m_width, m_height);
 		}
 		else
 			throw Exception("Unknown buffer format");
@@ -352,10 +331,10 @@ namespace Venusaur
 
 		// Draw the triangles !
 		glBindVertexArray(m_vao);
-		glDrawArrays(GL_TRIANGLES, 0, 6); // 2*3 indices starting at 0 -> 2 triangles
+		glDrawArrays(GL_TRIANGLES, 0, 3);
 
 		glDisable(GL_FRAMEBUFFER_SRGB);
 
 		//GL_CHECK_ERRORS();
 	}
-} // namespace sutil
+} // namespace Venusaur

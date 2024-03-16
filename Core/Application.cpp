@@ -37,7 +37,7 @@ Venusaur::Application::Application(int width, int height, const char* title)
 	glfwSwapInterval(1);
 
 	// Init gl3w.
-	m_rendererOpenGL = std::make_shared<RendererOpenGL>(m_width, m_width);
+	m_rendererOpenGL = std::make_shared<RendererOpenGL>(m_width, m_height);
 
 	// Init ImGui.
 	IMGUI_CHECKVERSION();
