@@ -226,7 +226,7 @@ namespace Venusaur
 	}
 
 	RendererGL::RendererGL(const int32_t screen_res_x, const int32_t screen_res_y, BufferImageFormat format)
-		: m_image_format(format)
+		: m_image_format(format), m_width(screen_res_x), m_height(screen_res_y)
 	{
 		// Init gl3w.
 		if (gl3wInit())
@@ -298,16 +298,10 @@ namespace Venusaur
 	}
 
 
-	void RendererGL::Display(
-		const int32_t  screen_res_x,
-		const int32_t  screen_res_y,
-		const int32_t  framebuf_res_x,
-		const int32_t  framebuf_res_y,
-		const uint32_t pbo
-	) const
+	void RendererGL::Draw() const
 	{
 		glBindFramebuffer(GL_FRAMEBUFFER, 0);
-		glViewport(0, 0, framebuf_res_x, framebuf_res_y);
+		glViewport(0, 0, m_width, m_height);
 
 		GLfloat clearColor[] = { 0.3f, 0.2f, 0.6f, 1.0f };
 		GLfloat clearDepth = 0.0f;
@@ -316,11 +310,11 @@ namespace Venusaur
 
 		glUseProgram(m_program);
 
-		if (pbo != 0)
+		if (m_pbo != 0)
 		{
 			// Bind our texture in Texture Unit 0
 			glBindTextureUnit(0, m_renderTex);
-			glBindBuffer(GL_PIXEL_UNPACK_BUFFER, pbo);
+			glBindBuffer(GL_PIXEL_UNPACK_BUFFER, m_pbo);
 
 			size_t elmt_size = pixelFormatSize(m_image_format);
 			if (elmt_size % 8 == 0) glPixelStorei(GL_UNPACK_ALIGNMENT, 8);
@@ -333,16 +327,16 @@ namespace Venusaur
 			if (m_image_format == BufferImageFormat::UNSIGNED_BYTE4)
 			{
 				// input is assumed to be in sRGB since it is only 1 byte per channel in size
-				glTextureSubImage2D(m_renderTex, 0, 0, 0, screen_res_x, screen_res_y, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+				glTextureSubImage2D(m_renderTex, 0, 0, 0, m_width, m_height, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
 				convertToSrgb = false;
 			}
 			else if (m_image_format == BufferImageFormat::FLOAT3)
 			{
-				glTextureSubImage2D(m_renderTex, 0, 0, 0, screen_res_x, screen_res_y, GL_RGB, GL_FLOAT, nullptr);
+				glTextureSubImage2D(m_renderTex, 0, 0, 0, m_width, m_height, GL_RGB, GL_FLOAT, nullptr);
 			}
 			else if (m_image_format == BufferImageFormat::FLOAT4)
 			{
-				glTextureSubImage2D(m_renderTex, 0, 0, 0, screen_res_x, screen_res_y, GL_RGBA, GL_FLOAT, nullptr);
+				glTextureSubImage2D(m_renderTex, 0, 0, 0, m_width, m_height, GL_RGBA, GL_FLOAT, nullptr);
 			}
 			else
 				throw Exception("Unknown buffer format");
@@ -364,5 +358,4 @@ namespace Venusaur
 
 		//GL_CHECK_ERRORS();
 	}
-
 } // namespace sutil

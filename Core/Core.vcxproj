@@ -100,6 +100,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="Application.cpp" />
     <ClCompile Include="Camera.cpp" />
     <ClCompile Include="Core.cpp" />
     <ClCompile Include="RendererGL.cpp" />
@@ -114,9 +115,11 @@
     </CudaCompile>
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="Application.h" />
     <ClInclude Include="Camera.h" />
     <ClInclude Include="CUDAOutputBuffer.h" />
     <ClInclude Include="Exception.h" />
+    <ClInclude Include="Interfaces.h" />
     <ClInclude Include="RendererGL.h" />
     <ClInclude Include="RayTracer.h" />
     <ClInclude Include="Scene.h" />

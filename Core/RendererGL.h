@@ -35,6 +35,7 @@
 
 #include <GL/gl3w.h>
 
+#include "Interfaces.h"
 #include "Exception.h"
 
 namespace Venusaur
@@ -47,24 +48,28 @@ namespace Venusaur
 		FLOAT3
 	};
 
-	class RendererGL
+	class RendererGL : public IDrawable
 	{
 	public:
 		RendererGL(const int32_t screen_res_x, const int32_t screen_res_y, BufferImageFormat format = BufferImageFormat::UNSIGNED_BYTE4);
 
-		void Display(
-			const int32_t  screen_res_x,
-			const int32_t  screen_res_y,
-			const int32_t  framebuf_res_x,
-			const int32_t  framebuf_res_y,
-			const uint32_t pbo) const;
+		void Draw() const override;
+
+		const char* GetName() const override { return m_name; }
 
 	private:
+		const char* m_name = "OpenGL";
+
+		GLsizei  m_width;
+		GLsizei  m_height;
+
 		GLuint   m_renderTex = 0u;
 		GLuint   m_program = 0u;
 		GLint    m_render_tex_uniform_loc = -1;
 		GLuint   m_vbo = 0;
 		GLuint   m_vao = 0;
+
+		GLuint	 m_pbo = 0;
 
 		BufferImageFormat m_image_format;
 
