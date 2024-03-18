@@ -155,7 +155,7 @@ CUDAOutputBuffer<PIXEL_FORMAT>::~CUDAOutputBuffer()
         }
         else if( m_type == CUDAOutputBufferType::GL_INTEROP )
         {
-            // nothing needed
+            //CUDA_CHECK(cudaGraphicsUnregisterResource(m_cuda_gfx_resource));
         }
 
         if( m_pbo != 0u )

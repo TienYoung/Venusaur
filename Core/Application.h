@@ -31,53 +31,49 @@ namespace Venusaur
 			}
 			if (action == GLFW_REPEAT || action == GLFW_PRESS)
 			{
-#ifdef ENABLE_OPTIX
-				// Move
-				switch (key)
-				{
-				case GLFW_KEY_W:
-					camera.MoveForward(0.1f);
-					break;
-				case GLFW_KEY_S:
-					camera.MoveForward(-0.1f);
-					break;
-				case GLFW_KEY_D:
-					camera.MoveRight(0.1f);
-					break;
-				case GLFW_KEY_A:
-					camera.MoveRight(-0.1f);
-					break;
-				case GLFW_KEY_Q:
-					camera.MoveUp(-0.1f);
-					break;
-				case GLFW_KEY_E:
-					camera.MoveUp(0.1f);
-					break;
-				case GLFW_KEY_UP:
-					camera.Pitch(-1.0f);
-					break;
-				case GLFW_KEY_DOWN:
-					camera.Pitch(1.0f);
-					break;
-				case GLFW_KEY_RIGHT:
-					camera.Yaw(1.0f);
-					break;
-				case GLFW_KEY_LEFT:
-					camera.Yaw(-1.0f);
-					break;
-				default:
-					break;
-				}
-#endif
+//				// Move
+//				switch (key)
+//				{
+//				case GLFW_KEY_W:
+//					camera.MoveForward(0.1f);
+//					break;
+//				case GLFW_KEY_S:
+//					camera.MoveForward(-0.1f);
+//					break;
+//				case GLFW_KEY_D:
+//					camera.MoveRight(0.1f);
+//					break;
+//				case GLFW_KEY_A:
+//					camera.MoveRight(-0.1f);
+//					break;
+//				case GLFW_KEY_Q:
+//					camera.MoveUp(-0.1f);
+//					break;
+//				case GLFW_KEY_E:
+//					camera.MoveUp(0.1f);
+//					break;
+//				case GLFW_KEY_UP:
+//					camera.Pitch(-1.0f);
+//					break;
+//				case GLFW_KEY_DOWN:
+//					camera.Pitch(1.0f);
+//					break;
+//				case GLFW_KEY_RIGHT:
+//					camera.Yaw(1.0f);
+//					break;
+//				case GLFW_KEY_LEFT:
+//					camera.Yaw(-1.0f);
+//					break;
+//				default:
+//					break;
+//				}
 			}
 		}
 
 		static void s_WindowResizeCallback(GLFWwindow* window, int width, int height)
 		{
-#ifdef ENABLE_OPTIX
-			auto outputBuffer = static_cast<CUDAOutputBuffer<uchar4>*>(glfwGetWindowUserPointer(window));
-			outputBuffer->resize(width, height);
-#endif
+			//auto outputBuffer = static_cast<CUDAOutputBuffer<uchar4>*>(glfwGetWindowUserPointer(window));
+			//outputBuffer->resize(width, height);
 		}
 
 

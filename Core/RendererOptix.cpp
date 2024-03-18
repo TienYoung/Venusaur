@@ -1,5 +1,7 @@
 #include "RendererOptix.h"
 
+#include <filesystem>
+
 #include <optix_function_table_definition.h>
 #include <optix_stack_size.h>
 #include <optix_stubs.h>
@@ -7,14 +9,44 @@
 #include "vec_math.h"
 
 
-Venusaur::RendererOptix::RendererOptix(const Scene& scene, const std::string ptxSource)
+Venusaur::RendererOptix::RendererOptix(const int32_t width, const int32_t height)
+	: m_outputBuffer(CUDAOutputBufferType::GL_INTEROP, width, height)
 {
 	CreateContext();
-	BuildAccelerationStructures(scene);
-	CreateModule(ptxSource);
+	BuildAccelerationStructures();
+	CreateModule();
 	CreateProgramGroups();
 	CreatePipeline();
-	CreateSBT(scene);
+	CreateSBT();
+
+	CUDA_CHECK(cudaMalloc(
+		reinterpret_cast<void**>(&m_state.params.accum),
+		m_outputBuffer.width() * m_outputBuffer.height() * sizeof(float4)
+	));
+
+	m_state.params.subframe_index = 0u;
+
+	m_outputBuffer.setStream(m_state.stream);
+
+
+	//m_state.params.image = m_outputBuffer.map();
+	m_state.params.width = m_outputBuffer.width();
+	m_state.params.height = m_outputBuffer.height();
+	//m_state.params.samples_per_pixel = 16;
+	//m_state.params.subframe_index++;
+	//glm::vec3 origin = camera.GetPosition();
+	//m_state.params.origin = make_float3(origin.x, origin.y, origin.z);
+	//glm::vec3 u, v, w;
+	//camera.UVWFrame(u, v, w);
+	//m_state.params.u = make_float3(u.x, u.y, u.z);
+	//m_state.params.v = make_float3(v.x, v.y, v.z);
+	//m_state.params.w = make_float3(w.x, w.y, w.z);
+	//m_state.params.lens_radius = camera.GetLensRadius();
+
+	m_state.params.handle = m_state.gas_handle;
+
+	CUDA_CHECK(cudaStreamCreate(&m_state.stream));
+	CUDA_CHECK(cudaMalloc(reinterpret_cast<void**>(&m_state.d_params), sizeof(Params)));
 }
 
 Venusaur::RendererOptix::~RendererOptix()
@@ -36,48 +68,27 @@ Venusaur::RendererOptix::~RendererOptix()
 	OPTIX_CHECK(optixDeviceContextDestroy(m_state.context));
 }
 
-void Venusaur::RendererOptix::Draw(Camera& camera, CUDAOutputBuffer<uchar4>& outputBuffer)
+void Venusaur::RendererOptix::Draw()
 {
-	if (camera.Changed())
-	{
-		CUDA_CHECK(cudaMalloc(
-			reinterpret_cast<void**>(&m_state.params.accum),
-			outputBuffer.width() * outputBuffer.height() * sizeof(float4)
-		));
-
-		m_state.params.subframe_index = 0u;
-	}
-
-	outputBuffer.setStream(m_state.stream);
-
-
-	m_state.params.image = outputBuffer.map();
-	m_state.params.width = outputBuffer.width();
-	m_state.params.height = outputBuffer.height();
-	m_state.params.samples_per_pixel = 16;
-	m_state.params.subframe_index++;
-	glm::vec3 origin = camera.GetPosition();
-	m_state.params.origin = make_float3(origin.x, origin.y, origin.z);
-	glm::vec3 u, v, w;
-	camera.UVWFrame(u, v, w);
-	m_state.params.u = make_float3(u.x, u.y, u.z);
-	m_state.params.v = make_float3(v.x, v.y, v.z);
-	m_state.params.w = make_float3(w.x, w.y, w.z);
-	m_state.params.lens_radius = camera.GetLensRadius();
-	m_state.params.handle = m_state.gas_handle;
-
-	CUDA_CHECK(cudaStreamCreate(&m_state.stream));
-
-	CUdeviceptr d_param;
-	CUDA_CHECK(cudaMalloc(reinterpret_cast<void**>(&d_param), sizeof(Params)));
-	CUDA_CHECK(cudaMemcpy(
-		reinterpret_cast<void*>(d_param),
-		&m_state.params, sizeof(m_state.params),
-		cudaMemcpyHostToDevice
+	uchar4* result_buffer_data = m_outputBuffer.map();
+	m_state.params.image = result_buffer_data;
+	CUDA_CHECK(cudaMemcpyAsync(
+		reinterpret_cast<void*>(m_state.d_params),
+		&m_state.params, sizeof(Params),
+		cudaMemcpyHostToDevice, m_state.stream
 	));
 
-	OPTIX_CHECK(optixLaunch(m_state.pipeline, m_state.stream, d_param, sizeof(Params), &m_state.sbt, outputBuffer.width(), outputBuffer.height(), /*depth=*/1));
-	outputBuffer.unmap();
+	OPTIX_CHECK(optixLaunch(
+		m_state.pipeline,
+		m_state.stream,
+		reinterpret_cast<CUdeviceptr>(m_state.d_params),
+		sizeof(Params),
+		&m_state.sbt,
+		m_outputBuffer.width(),
+		m_outputBuffer.height(),
+		/*depth=*/1
+	));
+	m_outputBuffer.unmap();
 	CUDA_SYNC_CHECK();
 }
 
@@ -95,29 +106,29 @@ void Venusaur::RendererOptix::CreateContext()
 	OPTIX_CHECK(optixDeviceContextCreate(cuCtx, &options, &m_state.context));
 }
 
-void Venusaur::RendererOptix::BuildAccelerationStructures(const Scene& scene)
+void Venusaur::RendererOptix::BuildAccelerationStructures()
 {
 	OptixAccelBuildOptions accel_options = {};
 	accel_options.buildFlags = OPTIX_BUILD_FLAG_ALLOW_COMPACTION;
 	accel_options.operation = OPTIX_BUILD_OPERATION_BUILD;
 
 	// AABB build input
-	const size_t aabbs_size_in_bytes = scene.m_aabbs.size() * sizeof(OptixAabb);
+	const size_t aabbs_size_in_bytes = m_scene.m_aabbs.size() * sizeof(OptixAabb);
 	CUdeviceptr d_aabb_buffer;
 	CUDA_CHECK(cudaMalloc(reinterpret_cast<void**>(&d_aabb_buffer), aabbs_size_in_bytes));
 	CUDA_CHECK(cudaMemcpy(
 		reinterpret_cast<void*>(d_aabb_buffer),
-		scene.m_aabbs.data(),
+		m_scene.m_aabbs.data(),
 		aabbs_size_in_bytes,
 		cudaMemcpyHostToDevice
 	));
 
-	const size_t obj_indices_size_in_bytes = scene.m_indices.size() * sizeof(uint32_t);
+	const size_t obj_indices_size_in_bytes = m_scene.m_indices.size() * sizeof(uint32_t);
 	CUdeviceptr  d_obj_indices = 0;
 	CUDA_CHECK(cudaMalloc(reinterpret_cast<void**>(&d_obj_indices), obj_indices_size_in_bytes));
 	CUDA_CHECK(cudaMemcpy(
 		reinterpret_cast<void*>(d_obj_indices),
-		scene.m_indices.data(),
+		m_scene.m_indices.data(),
 		obj_indices_size_in_bytes,
 		cudaMemcpyHostToDevice
 	));
@@ -125,15 +136,15 @@ void Venusaur::RendererOptix::BuildAccelerationStructures(const Scene& scene)
 	OptixBuildInput aabb_input = {};
 	aabb_input.type = OPTIX_BUILD_INPUT_TYPE_CUSTOM_PRIMITIVES;
 	aabb_input.customPrimitiveArray.aabbBuffers = &d_aabb_buffer;
-	aabb_input.customPrimitiveArray.numPrimitives = static_cast<unsigned int>(scene.m_spheres.size());
+	aabb_input.customPrimitiveArray.numPrimitives = static_cast<unsigned int>(m_scene.m_spheres.size());
 
-	unsigned int* aabb_input_flags = new unsigned int[scene.m_spheres.size()];
-	for (size_t i = 0; i < scene.m_spheres.size(); ++i)
+	unsigned int* aabb_input_flags = new unsigned int[m_scene.m_spheres.size()];
+	for (size_t i = 0; i < m_scene.m_spheres.size(); ++i)
 	{
 		aabb_input_flags[i] = OPTIX_GEOMETRY_FLAG_NONE;
 	}
 	aabb_input.customPrimitiveArray.flags = aabb_input_flags;
-	aabb_input.customPrimitiveArray.numSbtRecords = static_cast<unsigned int>(scene.m_spheres.size());
+	aabb_input.customPrimitiveArray.numSbtRecords = static_cast<unsigned int>(m_scene.m_spheres.size());
 	aabb_input.customPrimitiveArray.sbtIndexOffsetBuffer = d_obj_indices;
 	aabb_input.customPrimitiveArray.sbtIndexOffsetSizeInBytes = sizeof(uint32_t);
 
@@ -192,8 +203,12 @@ void Venusaur::RendererOptix::BuildAccelerationStructures(const Scene& scene)
 	}
 }
 
-void Venusaur::RendererOptix::CreateModule(const std::string& ptxSource)
+void Venusaur::RendererOptix::CreateModule()
 {
+	std::filesystem::path ptxPath("RayTracer.ptx");
+	std::fstream ptxFile(ptxPath);
+	std::string ptxSource(std::istreambuf_iterator<char>(ptxFile), {});
+
 	OptixModuleCompileOptions module_compile_options = {};
 	module_compile_options.maxRegisterCount = OPTIX_COMPILE_DEFAULT_MAX_REGISTER_COUNT;
 	module_compile_options.optLevel = OPTIX_COMPILE_OPTIMIZATION_DEFAULT;
@@ -387,7 +402,7 @@ void Venusaur::RendererOptix::CreatePipeline()
 	));
 }
 
-void Venusaur::RendererOptix::CreateSBT(const Scene& scene)
+void Venusaur::RendererOptix::CreateSBT()
 {
 	CUdeviceptr  raygen_record;
 	const size_t raygen_record_size = sizeof(RayGenSbtRecord);
@@ -415,26 +430,26 @@ void Venusaur::RendererOptix::CreateSBT(const Scene& scene)
 
 	CUdeviceptr hitgroup_records;
 	size_t      hitgroup_record_size = sizeof(HitGroupSbtRecord);
-	CUDA_CHECK(cudaMalloc(reinterpret_cast<void**>(&hitgroup_records), hitgroup_record_size * scene.m_spheres.size()));
-	std::vector<HitGroupSbtRecord> hg_stbs(scene.m_spheres.size());
-	for (size_t i = 0; i < scene.m_spheres.size(); ++i)
+	CUDA_CHECK(cudaMalloc(reinterpret_cast<void**>(&hitgroup_records), hitgroup_record_size * m_scene.m_spheres.size()));
+	std::vector<HitGroupSbtRecord> hg_stbs(m_scene.m_spheres.size());
+	for (size_t i = 0; i < m_scene.m_spheres.size(); ++i)
 	{
-		hg_stbs[i].data.center = make_float3(scene.m_spheres[i].GetCenter());
-		hg_stbs[i].data.radius = scene.m_spheres[i].GetRadius();
+		hg_stbs[i].data.center = make_float3(m_scene.m_spheres[i].GetCenter());
+		hg_stbs[i].data.radius = m_scene.m_spheres[i].GetRadius();
 
-		switch (scene.m_spheres[i].GetMaterial().GetType())
+		switch (m_scene.m_spheres[i].GetMaterial().GetType())
 		{
 		case Material::Lambertian:
-			hg_stbs[i].data.mat.albedo = make_float3(scene.m_spheres[i].GetMaterial().GetAlbedo());
+			hg_stbs[i].data.mat.albedo = make_float3(m_scene.m_spheres[i].GetMaterial().GetAlbedo());
 			optixSbtRecordPackHeader(m_state.lambertian_hit_group, &hg_stbs[i]);
 			break;
 		case Material::Metal:
-			hg_stbs[i].data.mat.albedo = make_float3(scene.m_spheres[i].GetMaterial().GetAlbedo());
-			hg_stbs[i].data.mat.fuzz = scene.m_spheres[i].GetMaterial().GetFuzz();
+			hg_stbs[i].data.mat.albedo = make_float3(m_scene.m_spheres[i].GetMaterial().GetAlbedo());
+			hg_stbs[i].data.mat.fuzz = m_scene.m_spheres[i].GetMaterial().GetFuzz();
 			optixSbtRecordPackHeader(m_state.metal_hit_group, &hg_stbs[i]);
 			break;
 		case Material::Dielectric:
-			hg_stbs[i].data.mat.ir = scene.m_spheres[i].GetMaterial().GetIR();
+			hg_stbs[i].data.mat.ir = m_scene.m_spheres[i].GetMaterial().GetIR();
 			optixSbtRecordPackHeader(m_state.dielectric_hit_group, &hg_stbs[i]);
 		default:
 			break;
@@ -444,7 +459,7 @@ void Venusaur::RendererOptix::CreateSBT(const Scene& scene)
 	CUDA_CHECK(cudaMemcpy(
 		reinterpret_cast<void*>(hitgroup_records),
 		hg_stbs.data(),
-		hitgroup_record_size * scene.m_spheres.size(),
+		hitgroup_record_size * m_scene.m_spheres.size(),
 		cudaMemcpyHostToDevice
 	));
 
@@ -454,5 +469,5 @@ void Venusaur::RendererOptix::CreateSBT(const Scene& scene)
 	m_state.sbt.missRecordCount = 1;
 	m_state.sbt.hitgroupRecordBase = hitgroup_records;
 	m_state.sbt.hitgroupRecordStrideInBytes = sizeof(HitGroupSbtRecord);
-	m_state.sbt.hitgroupRecordCount = static_cast<unsigned int>(scene.m_spheres.size());
+	m_state.sbt.hitgroupRecordCount = static_cast<unsigned int>(m_scene.m_spheres.size());
 }

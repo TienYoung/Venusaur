@@ -277,7 +277,7 @@ namespace Venusaur
 	}
 
 
-	void RendererOpenGL::Draw() const
+	void RendererOpenGL::Draw()
 	{
 		glViewport(0, 0, m_width, m_height);
 

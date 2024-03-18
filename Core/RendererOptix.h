@@ -17,18 +17,37 @@
 #include "Scene.h"
 #include "CUDAOutputBuffer.h"
 
+#include "Interfaces.h"
+
 namespace Venusaur
 {
-
-	class RendererOptix
+	class RendererOptix : public IDrawable
 	{
 	public:
-		RendererOptix(const Scene& scene, const std::string ptxSource);
+		RendererOptix(const int32_t	width, const int32_t height);
 		~RendererOptix();
 
-		void Draw(Camera& camera, CUDAOutputBuffer<uchar4>& outputBuffer);
+		void Draw() override;
+		const char* GetName() const override { return m_name; }
+
+		GLuint PBO() { return m_outputBuffer.getPBO(); }
 
 	private:
+		const char* m_name = "Optix";
+
+		//glm::vec3 lookfrom{ 13, 2, 3 };
+		//glm::vec3 lookat{ 0, 0, 0 };
+		//glm::vec3 vup{ 0, 1, 0 };
+		//auto dist_to_focus = 10.0f;
+		//auto aperture = 0.1f;
+		//const auto aspect_ratio = 3.0f / 2.0f;
+		//const int image_width = 1200;
+		//const int image_height = static_cast<int>(image_width / aspect_ratio);
+		//Camera camera(lookfrom, 20.0f, aspect_ratio, aperture, dist_to_focus);
+		Scene m_scene;
+
+		CUDAOutputBuffer<uchar4> m_outputBuffer;
+
 		template <typename T>
 		struct SbtRecord
 		{
@@ -75,15 +94,15 @@ namespace Venusaur
 
 		void CreateContext();
 
-		void BuildAccelerationStructures(const Scene& scene);
+		void BuildAccelerationStructures();
 
-		void CreateModule(const std::string& ptxSource);
+		void CreateModule();
 
 		void CreateProgramGroups();
 
 		void CreatePipeline();
 
-		void CreateSBT(const Scene& scene);
+		void CreateSBT();
 
 	};
 }

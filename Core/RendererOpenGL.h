@@ -53,10 +53,10 @@ namespace Venusaur
 	public:
 		RendererOpenGL(const int32_t width, const int32_t height, BufferImageFormat format = BufferImageFormat::UNSIGNED_BYTE4);
 
-		void Draw() const override;
+		void Draw() override;
 
 		const char* GetName() const override { return m_name; }
-
+		void SetPBO(GLuint pbo) { m_pbo = pbo; }
 	private:
 		const char* m_name = "OpenGL";
 

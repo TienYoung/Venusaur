@@ -38,6 +38,7 @@ Venusaur::Application::Application(int width, int height, const char* title)
 
 	// Init gl3w.
 	m_rendererOpenGL = std::make_shared<RendererOpenGL>(m_width, m_height);
+	m_rendererOptix = std::make_shared<RendererOptix>(m_width, m_height);
 
 	// Init ImGui.
 	IMGUI_CHECKVERSION();
@@ -78,6 +79,23 @@ void Venusaur::Application::Update()
 	ImGui::Begin("Debugging", nullptr);
 	ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.0f, 0.6f, 0.1f, 1.0f));
 
+	try
+	{
+		// Optix
+		begin = std::chrono::steady_clock::now();
+		m_rendererOptix->Draw();
+		end = std::chrono::steady_clock::now();
+		durationMS = end - begin;
+		ImGui::Text("Optix:\t%.2fms", durationMS.count());
+	}
+	catch (const std::exception& e)
+	{
+		std::cerr << e.what() << std::endl;
+	}
+
+	m_rendererOpenGL->SetPBO(m_rendererOptix->PBO());
+
+	// OpenGL
 	begin = std::chrono::steady_clock::now();
 	m_rendererOpenGL->Draw();
 	end = std::chrono::steady_clock::now();
