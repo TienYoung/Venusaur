@@ -56,6 +56,9 @@ Venusaur::Application::Application(int width, int height, const char* title)
 
 Venusaur::Application::~Application()
 {
+	m_rendererOptix.reset();
+	m_rendererOpenGL.reset();
+
 	ImGui_ImplOpenGL3_Shutdown();
 	ImGui_ImplGlfw_Shutdown();
 	ImGui::DestroyContext();

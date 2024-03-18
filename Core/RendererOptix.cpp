@@ -10,7 +10,8 @@
 
 
 Venusaur::RendererOptix::RendererOptix(const int32_t width, const int32_t height)
-	: m_outputBuffer(CUDAOutputBufferType::GL_INTEROP, width, height)
+	: m_outputBuffer(CUDAOutputBufferType::GL_INTEROP, width, height),
+	camera(lookfrom, 20.0f, (float)width / height, aperture, dist_to_focus)
 {
 	CreateContext();
 	BuildAccelerationStructures();
@@ -34,14 +35,14 @@ Venusaur::RendererOptix::RendererOptix(const int32_t width, const int32_t height
 	m_state.params.height = m_outputBuffer.height();
 	//m_state.params.samples_per_pixel = 16;
 	//m_state.params.subframe_index++;
-	//glm::vec3 origin = camera.GetPosition();
-	//m_state.params.origin = make_float3(origin.x, origin.y, origin.z);
-	//glm::vec3 u, v, w;
-	//camera.UVWFrame(u, v, w);
-	//m_state.params.u = make_float3(u.x, u.y, u.z);
-	//m_state.params.v = make_float3(v.x, v.y, v.z);
-	//m_state.params.w = make_float3(w.x, w.y, w.z);
-	//m_state.params.lens_radius = camera.GetLensRadius();
+	glm::vec3 origin = camera.GetPosition();
+	m_state.params.origin = make_float3(origin.x, origin.y, origin.z);
+	glm::vec3 u, v, w;
+	camera.UVWFrame(u, v, w);
+	m_state.params.u = make_float3(u.x, u.y, u.z);
+	m_state.params.v = make_float3(v.x, v.y, v.z);
+	m_state.params.w = make_float3(w.x, w.y, w.z);
+	m_state.params.lens_radius = camera.GetLensRadius();
 
 	m_state.params.handle = m_state.gas_handle;
 

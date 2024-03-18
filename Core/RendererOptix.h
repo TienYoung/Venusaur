@@ -9,6 +9,7 @@
 
 #include <optix.h>
 
+#include <glm/glm.hpp>
 
 #include "Exception.h"
 #include "RayTracer.h"
@@ -35,15 +36,12 @@ namespace Venusaur
 	private:
 		const char* m_name = "Optix";
 
-		//glm::vec3 lookfrom{ 13, 2, 3 };
-		//glm::vec3 lookat{ 0, 0, 0 };
-		//glm::vec3 vup{ 0, 1, 0 };
-		//auto dist_to_focus = 10.0f;
-		//auto aperture = 0.1f;
-		//const auto aspect_ratio = 3.0f / 2.0f;
-		//const int image_width = 1200;
-		//const int image_height = static_cast<int>(image_width / aspect_ratio);
-		//Camera camera(lookfrom, 20.0f, aspect_ratio, aperture, dist_to_focus);
+		glm::vec3 lookfrom{ 13, 2, 3 };
+		glm::vec3 lookat{ 0, 0, 0 };
+		glm::vec3 vup{ 0, 1, 0 };
+		float dist_to_focus = 10.0f;
+		float aperture = 0.1f;
+		Camera camera;
 		Scene m_scene;
 
 		CUDAOutputBuffer<uchar4> m_outputBuffer;

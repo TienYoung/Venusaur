@@ -203,17 +203,17 @@ extern "C" __global__ void __raygen__rg()
 		pixel_color += prd.attenuation;
 	}
 
-	float3 accum_color = pixel_color / static_cast<float>(params.samples_per_pixel);
+	//float3 accum_color = pixel_color / static_cast<float>(params.samples_per_pixel);
 
-	if (params.subframe_index > 0)
-	{
-		const float                 a = 1.0f / static_cast<float>(params.subframe_index + 1);
-		const float3 accum_color_prev = make_float3(params.accum[image_index]);
-		accum_color = lerp(accum_color_prev, accum_color, a);
-	}
+	//if (params.subframe_index > 0)
+	//{
+	//	const float                 a = 1.0f / static_cast<float>(params.subframe_index + 1);
+	//	const float3 accum_color_prev = make_float3(params.accum[image_index]);
+	//	accum_color = lerp(accum_color_prev, accum_color, a);
+	//}
 
-    params.accum[image_index] = make_float4(accum_color, 1.0f);
-    params.image[image_index] = make_color(accum_color);
+    //params.accum[image_index] = make_float4(accum_color, 1.0f);
+	params.image[image_index] = make_color(make_float4(1.0f, 0.0f, 0.4f, 1.0f));
 }
 
 static __forceinline__ __device__ bool set_face_normal(const float3& direction, float3& outward_normal)
