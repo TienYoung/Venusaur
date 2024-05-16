@@ -238,6 +238,20 @@ namespace Venusaur
 		glDebugMessageCallback(MessageCallback, nullptr);
 		glDebugMessageControl(GL_DONT_CARE, GL_DONT_CARE, GL_DONT_CARE, 0, nullptr, GL_TRUE);
 
+		GLint colorSpace = 0;
+		glGetNamedFramebufferAttachmentParameteriv(0, GL_FRONT_LEFT, GL_FRAMEBUFFER_ATTACHMENT_COLOR_ENCODING, &colorSpace);
+		switch (colorSpace)
+		{
+		case GL_RGB:
+			// Enable color space convert
+			glEnable(GL_FRAMEBUFFER_SRGB);
+			break;
+		case GL_LINEAR:
+			// Disable color space convert
+			glDisable(GL_FRAMEBUFFER_SRGB);
+			break;
+		}
+
 		// Empty VAO
 		glCreateVertexArrays(1, &m_vao);
 
@@ -281,7 +295,7 @@ namespace Venusaur
 	{
 		glViewport(0, 0, m_width, m_height);
 
-		GLfloat clearColor[] = { 0.3f, 0.2f, 0.6f, 1.0f };
+		GLfloat clearColor[] = { 0.5f, 0.5f, 0.5f, 1.0f };
 		GLfloat clearDepth = 0.0f;
 		glClearNamedFramebufferfv(0, GL_COLOR, 0, clearColor);
 		glClearNamedFramebufferfv(0, GL_DEPTH, 0, &clearDepth);
@@ -326,13 +340,11 @@ namespace Venusaur
 				glEnable(GL_FRAMEBUFFER_SRGB);
 			else
 				glDisable(GL_FRAMEBUFFER_SRGB);
+
+			// Draw the triangles !
+			glBindVertexArray(m_vao);
+			glDrawArrays(GL_TRIANGLES, 0, 3);
 		}
-
-		// Draw the triangles !
-		glBindVertexArray(m_vao);
-		glDrawArrays(GL_TRIANGLES, 0, 3);
-
-		glDisable(GL_FRAMEBUFFER_SRGB);
 
 		//GL_CHECK_ERRORS();
 	}
