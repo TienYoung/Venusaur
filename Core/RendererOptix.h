@@ -28,6 +28,8 @@ namespace Venusaur
 		RendererOptix(const int32_t	width, const int32_t height);
 		~RendererOptix();
 
+		void Build();
+
 		void Draw() override;
 		const char* GetName() const override { return m_name; }
 
@@ -53,9 +55,9 @@ namespace Venusaur
 			T data;
 		};
 
-		typedef SbtRecord<RayGenData>         RayGenSbtRecord;
-		typedef SbtRecord<MissData>           MissSbtRecord;
-		typedef SbtRecord<SphereHitGroupData> HitGroupSbtRecord;
+		typedef SbtRecord<RayGenData>			RayGenSbtRecord;
+		typedef SbtRecord<MissData>				MissSbtRecord;
+		typedef SbtRecord<MaterialData>			HitGroupSbtRecord;
 
 		struct State
 		{
@@ -67,11 +69,7 @@ namespace Venusaur
 			OptixModule                    ptx_module = nullptr;
 			OptixPipelineCompileOptions    pipeline_compile_options = {};
 			OptixPipeline                  pipeline = nullptr;
-			OptixProgramGroup              raygen_prog_group = nullptr;
-			OptixProgramGroup              miss_prog_group = nullptr;
-			OptixProgramGroup              lambertian_hit_group = nullptr;
-			OptixProgramGroup              metal_hit_group = nullptr;
-			OptixProgramGroup              dielectric_hit_group = nullptr;
+			OptixProgramGroup              programGroups[5] = {};
 
 			CUstream                       stream = nullptr;
 			Params                         params = {};
@@ -92,9 +90,17 @@ namespace Venusaur
 
 		void CreateContext();
 
-		void BuildAccelerationStructures();
+		//void BuildAccelerationStructures();
 
-		void CreateModule();
+		struct SphereState
+		{
+			OptixTraversableHandle handle;
+			OptixBuildInput input;
+		};
+
+		void BuildAccelerationStructures(SphereState& state, const float3* center, const float* radius, size_t num);
+
+		void CreateModule(const char* filename = "RayTracer.optixir");
 
 		void CreateProgramGroups();
 

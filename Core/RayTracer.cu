@@ -8,7 +8,7 @@
 bool __forceinline__ __device__ near_zero(const float3& e)
 {
 	// Return true if the vector is close to zero in all dimensions.
-	const auto s = 1e-8;
+	const auto s = 1e-8f;
 	return (fabs(e.x) < s) && (fabs(e.y) < s) && (fabs(e.z) < s);
 }
 
@@ -213,7 +213,7 @@ extern "C" __global__ void __raygen__rg()
 	//}
 
     //params.accum[image_index] = make_float4(accum_color, 1.0f);
-	params.image[image_index] = make_color(make_float4(1.0f, 0.0f, 0.4f, 1.0f));
+	params.image[image_index] = make_color(make_float4(0.5f, 0.5f, 0.5f, 1.0f));
 }
 
 static __forceinline__ __device__ bool set_face_normal(const float3& direction, float3& outward_normal)
@@ -226,48 +226,48 @@ static __forceinline__ __device__ bool set_face_normal(const float3& direction, 
 #define OPTIX_HIT_KIND_CUSTOM_SPHERE_FRONT_FACE 0x00
 #define OPTIX_HIT_KIND_CUSTOM_SPHERE_BACK_FACE 0x01
 
-extern "C" __global__ void __intersection__hit_sphere()
-{
-	SphereHitGroupData* rtData = reinterpret_cast<SphereHitGroupData*>(optixGetSbtDataPointer());
-	const int    prim_idx = optixGetPrimitiveIndex();
-
-	float3 origin = optixGetWorldRayOrigin();
-	float3 direction = optixGetWorldRayDirection();
-	float t_min = optixGetRayTmin();
-	float t_max = optixGetRayTmax();
-
-	float3 oc = origin - rtData->center;
-	auto a = dot(direction, direction);
-	auto half_b = dot(oc, direction);
-	auto c = dot(oc, oc) - rtData->radius * rtData->radius;
-
-	auto discriminant = half_b * half_b - a * c;
-	if (discriminant < 0) return;
-	auto sqrtd = sqrt(discriminant);
-
-	auto root = (-half_b - sqrtd) / a;
-	if (root < t_min || t_max < root)
-	{
-		root = (-half_b + sqrtd) / a;
-		if (root < t_min || t_max < root) return;
-	}
-
-	float t = root;
-	float3 p = (origin + direction * root);
-	float3 normal = (p - rtData->center) / rtData->radius;
-	bool front_face = set_face_normal(direction, normal);
-
-	optixReportIntersection(
-		t,
-		front_face ? OPTIX_HIT_KIND_CUSTOM_SPHERE_FRONT_FACE : OPTIX_HIT_KIND_CUSTOM_SPHERE_BACK_FACE,
-		__float_as_uint(p.x),
-		__float_as_uint(p.y),
-		__float_as_uint(p.z),
-		__float_as_uint(normal.x),
-		__float_as_uint(normal.y),
-		__float_as_uint(normal.z)
-	);
-}
+//extern "C" __global__ void __intersection__hit_sphere()
+//{
+//	SphereHitGroupData* rtData = reinterpret_cast<SphereHitGroupData*>(optixGetSbtDataPointer());
+//	const int    prim_idx = optixGetPrimitiveIndex();
+//
+//	float3 origin = optixGetWorldRayOrigin();
+//	float3 direction = optixGetWorldRayDirection();
+//	float t_min = optixGetRayTmin();
+//	float t_max = optixGetRayTmax();
+//
+//	float3 oc = origin - rtData->center;
+//	auto a = dot(direction, direction);
+//	auto half_b = dot(oc, direction);
+//	auto c = dot(oc, oc) - rtData->radius * rtData->radius;
+//
+//	auto discriminant = half_b * half_b - a * c;
+//	if (discriminant < 0) return;
+//	auto sqrtd = sqrt(discriminant);
+//
+//	auto root = (-half_b - sqrtd) / a;
+//	if (root < t_min || t_max < root)
+//	{
+//		root = (-half_b + sqrtd) / a;
+//		if (root < t_min || t_max < root) return;
+//	}
+//
+//	float t = root;
+//	float3 p = (origin + direction * root);
+//	float3 normal = (p - rtData->center) / rtData->radius;
+//	bool front_face = set_face_normal(direction, normal);
+//
+//	optixReportIntersection(
+//		t,
+//		front_face ? OPTIX_HIT_KIND_CUSTOM_SPHERE_FRONT_FACE : OPTIX_HIT_KIND_CUSTOM_SPHERE_BACK_FACE,
+//		__float_as_uint(p.x),
+//		__float_as_uint(p.y),
+//		__float_as_uint(p.z),
+//		__float_as_uint(normal.x),
+//		__float_as_uint(normal.y),
+//		__float_as_uint(normal.z)
+//	);
+//}
 
 extern "C" __global__ void __closesthit__lambertian()
 {
@@ -309,8 +309,8 @@ extern "C" __global__ void __closesthit__lambertian()
 			1,                   // SBT stride   -- See SBT discussion
 			0,                   // missSBTIndex -- See SBT discussion
 			p0, p1);
-		SphereHitGroupData* rtData = reinterpret_cast<SphereHitGroupData*>(optixGetSbtDataPointer());
-		prd->attenuation *= rtData->mat.albedo;
+		MaterialData* rtData = reinterpret_cast<MaterialData*>(optixGetSbtDataPointer());
+		prd->attenuation *= rtData->albedo;
 	}
 	else
 	{
@@ -334,10 +334,10 @@ extern "C" __global__ void __closesthit__metal()
 			__uint_as_float(optixGetAttribute_5())
 		);
 
-		SphereHitGroupData* rtData = reinterpret_cast<SphereHitGroupData*>(optixGetSbtDataPointer());
+		MaterialData* rtData = reinterpret_cast<MaterialData*>(optixGetSbtDataPointer());
 		float3 reflected = reflect(normalize(prd->direction), normal);
 		prd->origin = p;
-		prd->direction = reflected + rtData->mat.fuzz * random_in_unit_sphere(prd->seed);
+		prd->direction = reflected + rtData->fuzz * random_in_unit_sphere(prd->seed);
 		if (dot(prd->direction, normal) > 0)
 		{
 			prd->depth -= 1;
@@ -357,7 +357,7 @@ extern "C" __global__ void __closesthit__metal()
 				1,                   // SBT stride   -- See SBT discussion
 				0,                   // missSBTIndex -- See SBT discussion
 				p0, p1);
-			prd->attenuation *= rtData->mat.albedo;
+			prd->attenuation *= rtData->albedo;
 		}
 		else
 		{
@@ -394,18 +394,18 @@ extern "C" __global__ void __closesthit__dielectric()
 			__uint_as_float(optixGetAttribute_5())
 		);
 
-		SphereHitGroupData* rtData = reinterpret_cast<SphereHitGroupData*>(optixGetSbtDataPointer());
-		float refraction_ratio = rtData->mat.ir;
+		MaterialData* rtData = reinterpret_cast<MaterialData*>(optixGetSbtDataPointer());
+		float refraction_ratio = rtData->ir;
 		if (optixGetHitKind() == OPTIX_HIT_KIND_CUSTOM_SPHERE_FRONT_FACE)
 		{
-			refraction_ratio = (1.0f / rtData->mat.ir);
+			refraction_ratio = (1.0f / rtData->ir);
 		}
 
 		float3 unit_direction = normalize(prd->direction);
-		double cos_theta = fminf(dot(-unit_direction, normal), 1.0);
-		double sin_theta = sqrt(1.0 - cos_theta * cos_theta);
+		float cos_theta = fminf(dot(-unit_direction, normal), 1.0f);
+		float sin_theta = sqrt(1.0f - cos_theta * cos_theta);
 
-		bool cannot_refract = refraction_ratio * sin_theta > 1.0;
+		bool cannot_refract = refraction_ratio * sin_theta > 1.0f;
 		float3 direction;
 
 		if (cannot_refract || reflectance(cos_theta, refraction_ratio) > random_float(prd->seed))
@@ -442,9 +442,9 @@ extern "C" __global__ void __closesthit__dielectric()
 extern "C" __global__ void __miss__ms()
 {
     float3 unit_direction = normalize(optixGetWorldRayDirection());
-    auto t = 0.5 * (unit_direction.y + 1.0);
+    auto t = 0.5f * (unit_direction.y + 1.0f);
 
 	PRD* prd = getPRD();
-    prd->attenuation = lerp(make_float3(1.0), make_float3(0.5, 0.7, 1.0), t);
+    prd->attenuation = lerp(make_float3(1.0f), make_float3(0.5f, 0.7f, 1.0f), t);
 	prd->depth -= 1;
 }

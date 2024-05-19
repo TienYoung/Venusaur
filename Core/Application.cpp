@@ -39,6 +39,7 @@ Venusaur::Application::Application(int width, int height, const char* title)
 	// Init gl3w.
 	m_rendererOpenGL = std::make_shared<RendererOpenGL>(m_width, m_height);
 	m_rendererOptix = std::make_shared<RendererOptix>(m_width, m_height);
+	m_rendererOptix->Build();
 
 	// Init ImGui.
 	IMGUI_CHECKVERSION();

@@ -16,12 +16,10 @@ struct Params
 	OptixTraversableHandle handle;
 };
 
-struct RayGenData
+struct SphereData
 {
-};
-
-struct MissData
-{
+	float3 center;
+	float radius;
 };
 
 struct MaterialData
@@ -37,11 +35,17 @@ struct MaterialData
 	};
 };
 
+struct RayGenData
+{
+};
+
+struct MissData
+{
+};
+
+
 struct SphereHitGroupData
 {
-	float3 center;
-	float radius;
-	MaterialData mat;
 };
 
 

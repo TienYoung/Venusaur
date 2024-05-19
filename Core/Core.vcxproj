@@ -110,8 +110,9 @@
     <CudaCompile Include="RayTracer.cu">
       <FileType>Document</FileType>
       <TargetMachinePlatform Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">64</TargetMachinePlatform>
+      <CompileOut Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">$(OutputPath)%(Filename).optixir</CompileOut>
+      <NvccCompilation Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">optix-ir</NvccCompilation>
       <FastMath Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</FastMath>
-      <GPUDebugInfo Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</GPUDebugInfo>
     </CudaCompile>
   </ItemGroup>
   <ItemGroup>
