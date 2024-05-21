@@ -2,16 +2,16 @@
 
 #include <filesystem>
 
+#include <cuda_gl_interop.h>
+
 #include <optix_function_table_definition.h>
 #include <optix_stack_size.h>
 #include <optix_stubs.h>
 
 #include "vec_math.h"
 
-
-Venusaur::RendererOptix::RendererOptix(const int32_t width, const int32_t height)
-	: m_outputBuffer(CUDAOutputBufferType::GL_INTEROP, width, height),
-	camera(lookfrom, 20.0f, (float)width / height, aperture, dist_to_focus)
+Venusaur::RendererOptix::RendererOptix(uint32_t width, uint32_t height)
+	: camera(lookfrom, 20.0f, (float)width / height, aperture, dist_to_focus), m_width(width), m_height(height)
 {
 	CreateContext();
 }
@@ -30,19 +30,13 @@ void Venusaur::RendererOptix::Build()
 	CreatePipeline();
 	CreateSBT();
 
-	CUDA_CHECK(cudaMalloc(
-		reinterpret_cast<void**>(&m_state.params.accum),
-		m_outputBuffer.width() * m_outputBuffer.height() * sizeof(float4)
-	));
-
 	m_state.params.subframe_index = 0u;
 
-	m_outputBuffer.setStream(m_state.stream);
-
-
 	//m_state.params.image = m_outputBuffer.map();
-	m_state.params.width = m_outputBuffer.width();
-	m_state.params.height = m_outputBuffer.height();
+	//m_state.params.width = m_outputBuffer.width();
+	//m_state.params.height = m_outputBuffer.height();
+	m_state.params.width = m_width;
+	m_state.params.height = m_height;
 	//m_state.params.samples_per_pixel = 16;
 	//m_state.params.subframe_index++;
 	glm::vec3 origin = camera.GetPosition();
@@ -69,6 +63,8 @@ Venusaur::RendererOptix::~RendererOptix()
 	CUDA_CHECK(cudaFree(reinterpret_cast<void*>(m_state.params.accum)));
 	CUDA_CHECK(cudaFree(reinterpret_cast<void*>(m_state.d_params)));
 
+	CUDA_CHECK(cudaGraphicsUnregisterResource(m_pbo));
+
 	OPTIX_CHECK(optixPipelineDestroy(m_state.pipeline));
 	OPTIX_CHECK(optixProgramGroupDestroy(m_state.programGroups[0]));
 	OPTIX_CHECK(optixProgramGroupDestroy(m_state.programGroups[1]));
@@ -81,7 +77,7 @@ Venusaur::RendererOptix::~RendererOptix()
 
 void Venusaur::RendererOptix::Draw()
 {
-	uchar4* result_buffer_data = m_outputBuffer.map();
+	uchar4* result_buffer_data = MapResource();
 	m_state.params.image = result_buffer_data;
 	CUDA_CHECK(cudaMemcpyAsync(
 		reinterpret_cast<void*>(m_state.d_params),
@@ -95,12 +91,17 @@ void Venusaur::RendererOptix::Draw()
 		reinterpret_cast<CUdeviceptr>(m_state.d_params),
 		sizeof(Params),
 		&m_state.sbt,
-		m_outputBuffer.width(),
-		m_outputBuffer.height(),
+		m_width,
+		m_height,
 		/*depth=*/1
 	));
-	m_outputBuffer.unmap();
+	UnmapResource();
 	CUDA_SYNC_CHECK();
+}
+
+void Venusaur::RendererOptix::SetPBO(GLuint pbo)
+{
+	CUDA_CHECK(cudaGraphicsGLRegisterBuffer(&m_pbo, pbo, cudaGraphicsMapFlagsWriteDiscard));
 }
 
 void Venusaur::RendererOptix::CreateContext()
@@ -473,4 +474,19 @@ void Venusaur::RendererOptix::CreateSBT()
 	m_state.sbt.hitgroupRecordBase = hitgroup_records;
 	m_state.sbt.hitgroupRecordStrideInBytes = sizeof(HitGroupSbtRecord);
 	m_state.sbt.hitgroupRecordCount = static_cast<unsigned int>(m_scene.getObjectsRef().size());
+}
+
+uchar4* Venusaur::RendererOptix::MapResource()
+{
+	CUDA_CHECK(cudaSetDevice(0));
+	CUDA_CHECK(cudaGraphicsMapResources(1, &m_pbo, m_state.stream));
+	uchar4* cudaPtr;
+	size_t size = 0;
+	CUDA_CHECK(cudaGraphicsResourceGetMappedPointer(reinterpret_cast<void**>(&cudaPtr), &size, m_pbo));
+	return cudaPtr;
+}
+
+void Venusaur::RendererOptix::UnmapResource()
+{
+	CUDA_CHECK(cudaGraphicsUnmapResources(1, &m_pbo, m_state.stream));
 }

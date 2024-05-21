@@ -118,7 +118,6 @@
   <ItemGroup>
     <ClInclude Include="Application.h" />
     <ClInclude Include="Camera.h" />
-    <ClInclude Include="CUDAOutputBuffer.h" />
     <ClInclude Include="Exception.h" />
     <ClInclude Include="Interfaces.h" />
     <ClInclude Include="RendererOpenGL.h" />

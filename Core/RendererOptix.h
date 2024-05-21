@@ -16,7 +16,6 @@
 
 #include "Camera.h"
 #include "Scene.h"
-#include "CUDAOutputBuffer.h"
 
 #include "Interfaces.h"
 
@@ -25,7 +24,7 @@ namespace Venusaur
 	class RendererOptix : public IDrawable
 	{
 	public:
-		RendererOptix(const int32_t	width, const int32_t height);
+		RendererOptix(uint32_t width, uint32_t height);
 		~RendererOptix();
 
 		void Build();
@@ -33,7 +32,8 @@ namespace Venusaur
 		void Draw() override;
 		const char* GetName() const override { return m_name; }
 
-		GLuint PBO() { return m_outputBuffer.getPBO(); }
+		
+		void SetPBO(GLuint pbo);
 
 	private:
 		const char* m_name = "Optix";
@@ -46,7 +46,10 @@ namespace Venusaur
 		Camera camera;
 		Scene m_scene;
 
-		CUDAOutputBuffer<uchar4> m_outputBuffer;
+		uint32_t m_width;
+		uint32_t m_height;
+
+		cudaGraphicsResource* m_pbo = nullptr;
 
 		template <typename T>
 		struct SbtRecord
@@ -108,5 +111,8 @@ namespace Venusaur
 
 		void CreateSBT();
 
+		uchar4* MapResource();
+
+		void UnmapResource();
 	};
 }

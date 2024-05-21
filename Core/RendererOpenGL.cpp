@@ -1,62 +1,14 @@
-//
-// Copyright (c) 2023, NVIDIA CORPORATION. All rights reserved.
-//
-// Redistribution and use in source and binary forms, with or without
-// modification, are permitted provided that the following conditions
-// are met:
-//  * Redistributions of source code must retain the above copyright
-//    notice, this list of conditions and the following disclaimer.
-//  * Redistributions in binary form must reproduce the above copyright
-//    notice, this list of conditions and the following disclaimer in the
-//    documentation and/or other materials provided with the distribution.
-//  * Neither the name of NVIDIA CORPORATION nor the names of its
-//    contributors may be used to endorse or promote products derived
-//    from this software without specific prior written permission.
-//
-// THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS ``AS IS'' AND ANY
-// EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
-// IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
-// PURPOSE ARE DISCLAIMED.  IN NO EVENT SHALL THE COPYRIGHT OWNER OR
-// CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
-// EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
-// PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
-// PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY
-// OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-// (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-// OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-//
-
 #include "RendererOpenGL.h"
 
 #include <iostream>
 #include <format>
 
+#include "Exception.h"
+
 namespace Venusaur
 {
-
-	//-----------------------------------------------------------------------------
-	//
-	// Helper functions
-	//
-	//-----------------------------------------------------------------------------
 	namespace
 	{
-
-		size_t pixelFormatSize(BufferImageFormat format)
-		{
-			switch (format)
-			{
-			case BufferImageFormat::UNSIGNED_BYTE4:
-				return sizeof(char) * 4;
-			case BufferImageFormat::FLOAT4:
-				return sizeof(float) * 4;
-			case BufferImageFormat::FLOAT3:
-				return sizeof(float) * 3;
-			default:
-				throw Exception("sutil::pixelFormatSize: Unrecognized buffer format");
-			}
-		}
-
 		GLuint createGLShader(const std::string& source, GLuint shader_type)
 		{
 			GLuint shader = glCreateShader(shader_type);
@@ -149,14 +101,7 @@ namespace Venusaur
 
 	} // anonymous namespace
 
-
-	//-----------------------------------------------------------------------------
-	//
-	// GLDisplay implementation
-	//
-	//-----------------------------------------------------------------------------
-
-	const std::string RendererOpenGL::s_vert_source = R"(
+	const std::string RendererOpenGL::s_vertexSource = R"(
 		#version 460 core
 
 		out vec2 UV;
@@ -168,7 +113,7 @@ namespace Venusaur
 		}
 	)";
 
-	const std::string RendererOpenGL::s_frag_source = R"(
+	const std::string RendererOpenGL::s_fragmentSource = R"(
 		#version 460 core
 
 		in vec2 UV;
@@ -224,8 +169,8 @@ namespace Venusaur
 		std::cout << std::endl;
 	}
 
-	RendererOpenGL::RendererOpenGL(const int32_t width, const int32_t height, BufferImageFormat format)
-		: m_image_format(format), m_width(width), m_height(height)
+	RendererOpenGL::RendererOpenGL(uint32_t width, uint32_t height)
+		: m_width(width), m_height(height)
 	{
 		// Init gl3w.
 		if (gl3wInit())
@@ -252,10 +197,13 @@ namespace Venusaur
 			break;
 		}
 
+		glCreateBuffers(1, &m_pbo);
+		glNamedBufferData(m_pbo, sizeof(uchar4) * m_width * m_height, nullptr, GL_STREAM_DRAW);
+
 		// Empty VAO
 		glCreateVertexArrays(1, &m_vao);
 
-		m_program = createGLProgram(s_vert_source, s_frag_source);
+		m_program = createGLProgram(s_vertexSource, s_fragmentSource);
 		m_render_tex_uniform_loc = getGLUniformLocation(m_program, "renderTex");
 
 		// Texture
@@ -265,86 +213,40 @@ namespace Venusaur
 		glTextureParameteri(m_renderTex, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
 		glTextureParameteri(m_renderTex, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 
-		size_t elmt_size = pixelFormatSize(m_image_format);
-		if (elmt_size % 8 == 0) glPixelStorei(GL_UNPACK_ALIGNMENT, 8);
-		else if (elmt_size % 4 == 0) glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
-		else if (elmt_size % 2 == 0) glPixelStorei(GL_UNPACK_ALIGNMENT, 2);
-		else                          glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+		//glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
 
-		bool convertToSrgb = true;
-
-		if (m_image_format == BufferImageFormat::UNSIGNED_BYTE4)
-		{
-			glTextureStorage2D(m_renderTex, 1, GL_RGBA8, m_width, m_height);
-		}
-		else if (m_image_format == BufferImageFormat::FLOAT3)
-		{
-			glTextureStorage2D(m_renderTex, 1, GL_RGB8_SNORM, m_width, m_height);
-		}
-		else if (m_image_format == BufferImageFormat::FLOAT4)
-		{
-			glTextureStorage2D(m_renderTex, 1, GL_RGBA8_SNORM, m_width, m_height);
-		}
-		else
-			throw Exception("Unknown buffer format");
+		glTextureStorage2D(m_renderTex, 1, GL_RGBA8, m_width, m_height);
 
 	}
-
 
 	void RendererOpenGL::Draw()
 	{
 		glViewport(0, 0, m_width, m_height);
 
-		GLfloat clearColor[] = { 0.5f, 0.5f, 0.5f, 1.0f };
+		GLfloat clearColor[] = { 0.0f, 0.0f, 0.0f, 1.0f };
 		GLfloat clearDepth = 0.0f;
 		glClearNamedFramebufferfv(0, GL_COLOR, 0, clearColor);
 		glClearNamedFramebufferfv(0, GL_DEPTH, 0, &clearDepth);
 
 		glUseProgram(m_program);
 
-		if (m_pbo != 0)
-		{
-			// Bind our texture in Texture Unit 0
-			glBindTextureUnit(0, m_renderTex);
-			glBindBuffer(GL_PIXEL_UNPACK_BUFFER, m_pbo);
+		// Bind our texture in Texture Unit 0
+		glBindTextureUnit(0, m_renderTex);
+		glBindBuffer(GL_PIXEL_UNPACK_BUFFER, m_pbo);
 
-			size_t elmt_size = pixelFormatSize(m_image_format);
-			if (elmt_size % 8 == 0) glPixelStorei(GL_UNPACK_ALIGNMENT, 8);
-			else if (elmt_size % 4 == 0) glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
-			else if (elmt_size % 2 == 0) glPixelStorei(GL_UNPACK_ALIGNMENT, 2);
-			else                          glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+		glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
 
-			bool convertToSrgb = true;
+		//glEnable(GL_FRAMEBUFFER_SRGB);
+		glTextureSubImage2D(m_renderTex, 0, 0, 0, m_width, m_height, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+		//glDisable(GL_FRAMEBUFFER_SRGB);
 
-			if (m_image_format == BufferImageFormat::UNSIGNED_BYTE4)
-			{
-				// input is assumed to be in sRGB since it is only 1 byte per channel in size
-				glTextureSubImage2D(m_renderTex, 0, 0, 0, m_width, m_height, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
-				convertToSrgb = false;
-			}
-			else if (m_image_format == BufferImageFormat::FLOAT3)
-			{
-				glTextureSubImage2D(m_renderTex, 0, 0, 0, m_width, m_height, GL_RGB, GL_FLOAT, nullptr);
-			}
-			else if (m_image_format == BufferImageFormat::FLOAT4)
-			{
-				glTextureSubImage2D(m_renderTex, 0, 0, 0, m_width, m_height, GL_RGBA, GL_FLOAT, nullptr);
-			}
-			else
-				throw Exception("Unknown buffer format");
+		glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
+		glUniform1i(m_render_tex_uniform_loc, 0);
 
-			glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
-			glUniform1i(m_render_tex_uniform_loc, 0);
 
-			if (convertToSrgb)
-				glEnable(GL_FRAMEBUFFER_SRGB);
-			else
-				glDisable(GL_FRAMEBUFFER_SRGB);
-
-			// Draw the triangles !
-			glBindVertexArray(m_vao);
-			glDrawArrays(GL_TRIANGLES, 0, 3);
-		}
+		// Draw the triangles !
+		glBindVertexArray(m_vao);
+		glDrawArrays(GL_TRIANGLES, 0, 3);
 
 		//GL_CHECK_ERRORS();
 	}

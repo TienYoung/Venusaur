@@ -38,7 +38,8 @@ __forceinline__ __device__ unsigned char quantizeUnsigned8Bits(float x)
 __forceinline__ __device__ uchar4 make_color(const float3& c)
 {
 	// first apply gamma, then convert to unsigned char
-	float3 srgb = toSRGB(clamp(c, 0.0f, 1.0f));
+	//float3 srgb = toSRGB(clamp(c, 0.0f, 1.0f));
+	float3 srgb = clamp(c, 0.0f, 1.0f);
 	return make_uchar4(quantizeUnsigned8Bits(srgb.x), quantizeUnsigned8Bits(srgb.y), quantizeUnsigned8Bits(srgb.z), 255u);
 }
 __forceinline__ __device__ uchar4 make_color(const float4& c)
@@ -212,8 +213,8 @@ extern "C" __global__ void __raygen__rg()
 	//	accum_color = lerp(accum_color_prev, accum_color, a);
 	//}
 
-    //params.accum[image_index] = make_float4(accum_color, 1.0f);
-	params.image[image_index] = make_color(make_float4(0.5f, 0.5f, 0.5f, 1.0f));
+	//params.accum[image_index] = make_float4(accum_color, 1.0f);
+	params.image[image_index] = make_color(make_float3(0.5f, 0.5f, 0.5f));
 }
 
 static __forceinline__ __device__ bool set_face_normal(const float3& direction, float3& outward_normal)

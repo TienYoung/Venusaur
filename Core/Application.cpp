@@ -40,6 +40,8 @@ Venusaur::Application::Application(int width, int height, const char* title)
 	m_rendererOpenGL = std::make_shared<RendererOpenGL>(m_width, m_height);
 	m_rendererOptix = std::make_shared<RendererOptix>(m_width, m_height);
 	m_rendererOptix->Build();
+	m_rendererOptix->SetPBO(m_rendererOpenGL->GetPBO());
+	
 
 	// Init ImGui.
 	IMGUI_CHECKVERSION();
@@ -97,7 +99,7 @@ void Venusaur::Application::Update()
 		std::cerr << e.what() << std::endl;
 	}
 
-	m_rendererOpenGL->SetPBO(m_rendererOptix->PBO());
+	//m_rendererOpenGL->SetPBO(m_rendererOptix->PBO());
 
 	// OpenGL
 	begin = std::chrono::steady_clock::now();
