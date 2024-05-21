@@ -204,17 +204,17 @@ extern "C" __global__ void __raygen__rg()
 		pixel_color += prd.attenuation;
 	}
 
-	//float3 accum_color = pixel_color / static_cast<float>(params.samples_per_pixel);
+	float3 accum_color = pixel_color / static_cast<float>(params.samples_per_pixel);
 
-	//if (params.subframe_index > 0)
-	//{
-	//	const float                 a = 1.0f / static_cast<float>(params.subframe_index + 1);
-	//	const float3 accum_color_prev = make_float3(params.accum[image_index]);
-	//	accum_color = lerp(accum_color_prev, accum_color, a);
-	//}
+	if (params.subframe_index > 0)
+	{
+		const float                 a = 1.0f / static_cast<float>(params.subframe_index + 1);
+		const float3 accum_color_prev = make_float3(params.accum[image_index]);
+		accum_color = lerp(accum_color_prev, accum_color, a);
+	}
 
-	//params.accum[image_index] = make_float4(accum_color, 1.0f);
-	params.image[image_index] = make_color(make_float3(0.5f, 0.5f, 0.5f));
+	params.accum[image_index] = make_float4(accum_color, 1.0f);
+	params.image[image_index] = make_color(accum_color);
 }
 
 static __forceinline__ __device__ bool set_face_normal(const float3& direction, float3& outward_normal)
@@ -310,8 +310,9 @@ extern "C" __global__ void __closesthit__lambertian()
 			1,                   // SBT stride   -- See SBT discussion
 			0,                   // missSBTIndex -- See SBT discussion
 			p0, p1);
-		MaterialData* rtData = reinterpret_cast<MaterialData*>(optixGetSbtDataPointer());
-		prd->attenuation *= rtData->albedo;
+		HitGroupData* rtData = reinterpret_cast<HitGroupData*>(optixGetSbtDataPointer());
+		MaterialData mat = rtData->material;
+		prd->attenuation *= mat.albedo;
 	}
 	else
 	{
@@ -335,10 +336,11 @@ extern "C" __global__ void __closesthit__metal()
 			__uint_as_float(optixGetAttribute_5())
 		);
 
-		MaterialData* rtData = reinterpret_cast<MaterialData*>(optixGetSbtDataPointer());
+		HitGroupData* rtData = reinterpret_cast<HitGroupData*>(optixGetSbtDataPointer());
+		MaterialData mat = rtData->material;
 		float3 reflected = reflect(normalize(prd->direction), normal);
 		prd->origin = p;
-		prd->direction = reflected + rtData->fuzz * random_in_unit_sphere(prd->seed);
+		prd->direction = reflected + mat.fuzz * random_in_unit_sphere(prd->seed);
 		if (dot(prd->direction, normal) > 0)
 		{
 			prd->depth -= 1;
@@ -358,7 +360,7 @@ extern "C" __global__ void __closesthit__metal()
 				1,                   // SBT stride   -- See SBT discussion
 				0,                   // missSBTIndex -- See SBT discussion
 				p0, p1);
-			prd->attenuation *= rtData->albedo;
+			prd->attenuation *= mat.albedo;
 		}
 		else
 		{
@@ -395,11 +397,12 @@ extern "C" __global__ void __closesthit__dielectric()
 			__uint_as_float(optixGetAttribute_5())
 		);
 
-		MaterialData* rtData = reinterpret_cast<MaterialData*>(optixGetSbtDataPointer());
-		float refraction_ratio = rtData->ir;
+		HitGroupData* rtData = reinterpret_cast<HitGroupData*>(optixGetSbtDataPointer());
+		MaterialData mat = rtData->material;
+		float refraction_ratio = mat.ir;
 		if (optixGetHitKind() == OPTIX_HIT_KIND_CUSTOM_SPHERE_FRONT_FACE)
 		{
-			refraction_ratio = (1.0f / rtData->ir);
+			refraction_ratio = (1.0f / mat.ir);
 		}
 
 		float3 unit_direction = normalize(prd->direction);

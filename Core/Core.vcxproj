@@ -51,6 +51,8 @@
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <LinkIncremental>false</LinkIncremental>
+    <OutDir>$(SolutionDir)Binaries\$(Platform)\$(Configuration)\</OutDir>
+    <IntDir>$(SolutionDir)\Intermediate\$(Platform)\$(Configuration)\</IntDir>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <ClCompile>
@@ -65,7 +67,6 @@
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <AdditionalLibraryDirectories>$(CUDA_PATH)\lib\x64;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <AdditionalDependencies>cudart.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <CustomBuild>
       <Command>nvcc -ptx -I "C:\ProgramData\NVIDIA Corporation\OptiX SDK 7.4.0\include" -I "C:\ProgramData\NVIDIA Corporation\OptiX SDK 7.4.0\SDK" --use_fast_math %(Filename).cu -o $(OutputPath)%(Filename).ptx</Command>
@@ -78,8 +79,9 @@
     </CustomBuild>
     <CudaCompile>
       <TargetMachinePlatform>64</TargetMachinePlatform>
-      <CompileOut>$(OutputPath)%(Filename).ptx</CompileOut>
-      <NvccCompilation>ptx</NvccCompilation>
+      <CompileOut>$(OutputPath)%(Filename).optixir</CompileOut>
+      <NvccCompilation>optix-ir</NvccCompilation>
+      <FastMath>true</FastMath>
     </CudaCompile>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -90,7 +92,8 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>C:\ProgramData\NVIDIA Corporation\OptiX SDK 8.0.0\include;$(CUDA_PATH)\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(CUDA_PATH)\include;C:\ProgramData\NVIDIA Corporation\OptiX SDK 8.0.0\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <LanguageStandard>stdcpp20</LanguageStandard>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -98,6 +101,13 @@
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
     </Link>
+    <CudaCompile>
+      <CompileOut>$(OutputPath)%(Filename).optixir</CompileOut>
+    </CudaCompile>
+    <CudaCompile>
+      <NvccCompilation>optix-ir</NvccCompilation>
+      <FastMath>true</FastMath>
+    </CudaCompile>
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="Application.cpp" />
@@ -110,9 +120,7 @@
     <CudaCompile Include="RayTracer.cu">
       <FileType>Document</FileType>
       <TargetMachinePlatform Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">64</TargetMachinePlatform>
-      <CompileOut Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">$(OutputPath)%(Filename).optixir</CompileOut>
-      <NvccCompilation Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">optix-ir</NvccCompilation>
-      <FastMath Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</FastMath>
+      <FastMath Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</FastMath>
     </CudaCompile>
   </ItemGroup>
   <ItemGroup>

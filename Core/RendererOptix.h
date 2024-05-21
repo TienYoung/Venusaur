@@ -60,7 +60,7 @@ namespace Venusaur
 
 		typedef SbtRecord<RayGenData>			RayGenSbtRecord;
 		typedef SbtRecord<MissData>				MissSbtRecord;
-		typedef SbtRecord<MaterialData>			HitGroupSbtRecord;
+		typedef SbtRecord<HitGroupData>			HitGroupSbtRecord;
 
 		struct State
 		{

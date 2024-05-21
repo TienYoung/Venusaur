@@ -44,8 +44,9 @@ struct MissData
 };
 
 
-struct SphereHitGroupData
+struct HitGroupData
 {
+	MaterialData material;
 };
 
 

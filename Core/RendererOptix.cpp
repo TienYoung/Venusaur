@@ -30,14 +30,15 @@ void Venusaur::RendererOptix::Build()
 	CreatePipeline();
 	CreateSBT();
 
+	m_state.params.image = nullptr;
+	CUDA_CHECK(cudaMalloc(
+		reinterpret_cast<void**>(&m_state.params.accum),
+		m_width * m_height * sizeof(float4)
+	));
 	m_state.params.subframe_index = 0u;
-
-	//m_state.params.image = m_outputBuffer.map();
-	//m_state.params.width = m_outputBuffer.width();
-	//m_state.params.height = m_outputBuffer.height();
 	m_state.params.width = m_width;
 	m_state.params.height = m_height;
-	//m_state.params.samples_per_pixel = 16;
+	m_state.params.samples_per_pixel = 1;
 	//m_state.params.subframe_index++;
 	glm::vec3 origin = camera.GetPosition();
 	m_state.params.origin = make_float3(origin.x, origin.y, origin.z);
@@ -447,15 +448,15 @@ void Venusaur::RendererOptix::CreateSBT()
 		switch (m_scene.getObjectsRef()[i].type)
 		{
 		case Scene::MaterialType::Lambertian:
-			hg_stbs[i].data = m_scene.getObjectMaterial(i);
+			hg_stbs[i].data.material = m_scene.getObjectMaterial(i);
 			optixSbtRecordPackHeader(m_state.programGroups[2], &hg_stbs[i]);
 			break;
 		case Scene::MaterialType::Metal:
-			hg_stbs[i].data = m_scene.getObjectMaterial(i);
+			hg_stbs[i].data.material = m_scene.getObjectMaterial(i);
 			optixSbtRecordPackHeader(m_state.programGroups[3], &hg_stbs[i]);
 			break;
 		case Scene::MaterialType::Dielectric:
-			hg_stbs[i].data = m_scene.getObjectMaterial(i);
+			hg_stbs[i].data.material = m_scene.getObjectMaterial(i);
 			optixSbtRecordPackHeader(m_state.programGroups[4], &hg_stbs[i]);
 		}
 	}
