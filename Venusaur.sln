@@ -5,6 +5,8 @@ VisualStudioVersion = 17.1.32228.430
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Core", "Core\Core.vcxproj", "{672EB686-6DFF-4403-9A26-FF6007273734}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "RTOW", "RTOW\RTOW.vcxproj", "{65D289C8-E617-45B2-8075-7D24889E6968}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|x64 = Debug|x64
@@ -15,6 +17,10 @@ Global
 		{672EB686-6DFF-4403-9A26-FF6007273734}.Debug|x64.Build.0 = Debug|x64
 		{672EB686-6DFF-4403-9A26-FF6007273734}.Release|x64.ActiveCfg = Release|x64
 		{672EB686-6DFF-4403-9A26-FF6007273734}.Release|x64.Build.0 = Release|x64
+		{65D289C8-E617-45B2-8075-7D24889E6968}.Debug|x64.ActiveCfg = Debug|x64
+		{65D289C8-E617-45B2-8075-7D24889E6968}.Debug|x64.Build.0 = Debug|x64
+		{65D289C8-E617-45B2-8075-7D24889E6968}.Release|x64.ActiveCfg = Release|x64
+		{65D289C8-E617-45B2-8075-7D24889E6968}.Release|x64.Build.0 = Release|x64
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
