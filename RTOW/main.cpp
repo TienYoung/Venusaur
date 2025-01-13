@@ -13,6 +13,8 @@
 #include <optix_stubs.h>
 #include <optix_function_table_definition.h>
 
+#include <OptiXToolkit/ShaderUtil/vec_math.h>
+
 #include "Display.h"
 #include "rt.h"
 
@@ -24,7 +26,7 @@ struct SbtRecord
 };
 
 typedef SbtRecord<RayGenData>			RayGenSbtRecord;
-//typedef SbtRecord<MissData>				MissSbtRecord;
+typedef SbtRecord<int>					MissSbtRecord;
 
 static void contextLogCallback(unsigned int level, const char* tag, const char* message, void* /*cbdata */)
 {
@@ -33,7 +35,7 @@ static void contextLogCallback(unsigned int level, const char* tag, const char* 
 
 int main(int argc, char* argv[])
 {
-	Display display = Display{ 512, 512 };
+	Display display{ 256, 256 };
 
 	// Create context
 	OptixDeviceContext optixContext = nullptr;
@@ -55,7 +57,7 @@ int main(int argc, char* argv[])
 	OptixModule module = nullptr;
 	OptixPipelineCompileOptions pipelineCompileOptions = {};
 	{
-		std::filesystem::path filename = "kernel.optixir";
+		std::filesystem::path filename = "rt.optixir";
 		if (!std::filesystem::exists(filename))
 		{
 			std::cout << std::filesystem::current_path();
@@ -103,11 +105,11 @@ int main(int argc, char* argv[])
 
 		programGroupsDesc[0].kind = OPTIX_PROGRAM_GROUP_KIND_RAYGEN;
 		programGroupsDesc[0].raygen.module = module;
-		programGroupsDesc[0].raygen.entryFunctionName = "__raygen__rg";
+		programGroupsDesc[0].raygen.entryFunctionName = "__raygen__uv";
 
 		programGroupsDesc[1].kind = OPTIX_PROGRAM_GROUP_KIND_MISS;
-		programGroupsDesc[1].miss.module = module;
-		programGroupsDesc[1].miss.entryFunctionName = "__miss__ms";
+		//programGroupsDesc[1].miss.module = module;
+		//programGroupsDesc[1].miss.entryFunctionName = "__miss__ms";
 
 		char   logString[2048];
 		size_t logStringSize = sizeof(logString);
@@ -135,7 +137,7 @@ int main(int argc, char* argv[])
 			&pipelineCompileOptions,
 			&pipelineLinkOptions,
 			programGroups,
-			2,
+			1,
 			logString, 
 			&logStringSize,
 			&pipeline);
@@ -144,6 +146,34 @@ int main(int argc, char* argv[])
 	// Create SBT
 	OptixShaderBindingTable sbt = {};
 	{
+		//// Image 
+
+		//auto aspect_ratio = 16.0 / 9.0;
+		//int image_width = 400;
+
+		//// Calculate the image height, and ensure that it's at least 1.
+		//int image_height = int(image_width / aspect_ratio);
+		//image_height = (image_height < 1) ? 1 : image_height;
+
+		//// Camera
+
+		//auto focal_length = 1.0;
+		//auto viewport_height = 2.0;
+		//auto viewport_width = viewport_height * (double(image_width) / image_height);
+		//auto camera_center = float3(0, 0, 0);
+
+		//// Calculate the vectors across the horizontal and down the vertical viewport edges.
+		//auto viewport_u = float3(viewport_width, 0, 0);
+		//auto viewport_v = float3(0, -viewport_height, 0);
+
+		//// Calculate the horizontal and vertical delta vectors from pixel to pixel.
+		//auto pixel_delta_u = viewport_u / image_width;
+		//auto pixel_delta_v = viewport_v / image_height;
+
+		//// Calculate the location of the upper left pixel.
+		//auto viewport_upper_left = camera_center - float3(0, 0, focal_length) - viewport_u / 2 - viewport_v / 2;
+		//auto pixel00_loc = viewport_upper_left + 0.5 * (pixel_delta_u + pixel_delta_v);
+
 		CUdeviceptr  raygen_record;
 		RayGenSbtRecord rg_sbt;
 		cudaMalloc(reinterpret_cast<void**>(&raygen_record), sizeof(RayGenSbtRecord));
@@ -151,8 +181,8 @@ int main(int argc, char* argv[])
 		cudaMemcpy(reinterpret_cast<void*>(raygen_record), &rg_sbt, sizeof(RayGenSbtRecord), cudaMemcpyHostToDevice);
 
 		CUdeviceptr miss_record;
-		RayGenSbtRecord ms_sbt;
-		cudaMalloc(reinterpret_cast<void**>(&miss_record), sizeof(RayGenSbtRecord));
+		MissSbtRecord ms_sbt;
+		cudaMalloc(reinterpret_cast<void**>(&miss_record), sizeof(MissSbtRecord));
 		optixSbtRecordPackHeader(programGroups[1], &ms_sbt);
 		cudaMemcpy(reinterpret_cast<void*>(miss_record), &ms_sbt, sizeof(RayGenSbtRecord), cudaMemcpyHostToDevice);
 
@@ -166,7 +196,8 @@ int main(int argc, char* argv[])
 	cudaGraphicsGLRegisterBuffer(&pboResouce, display.GetPBO(), cudaGraphicsMapFlagsWriteDiscard);
 
 	Params params = {};
-	params.image_width = 512;
+	params.width = display.GetWidth();
+	params.height = display.GetHeight();
 	CUdeviceptr deviceParams = 0;
 	cudaMalloc(reinterpret_cast<void**>(&deviceParams), sizeof(Params));
 
@@ -178,7 +209,7 @@ int main(int argc, char* argv[])
 		size_t size = 0;
 		cudaGraphicsResourceGetMappedPointer(reinterpret_cast<void**>(&params.image), &size, pboResouce);
 		cudaMemcpyAsync(reinterpret_cast<void*>(deviceParams), &params, sizeof(Params), cudaMemcpyHostToDevice, stream);
-		optixLaunch(pipeline, stream, deviceParams, sizeof(Params), &sbt, 512, 512, 1);
+		optixLaunch(pipeline, stream, deviceParams, sizeof(Params), &sbt, display.GetWidth(), display.GetHeight(), 1);
 		cudaGraphicsUnmapResources(1, &pboResouce, stream);
 		cudaDeviceSynchronize();
 
@@ -187,7 +218,7 @@ int main(int argc, char* argv[])
 
 	optixPipelineDestroy(pipeline);
 	optixProgramGroupDestroy(programGroups[0]);
-	optixProgramGroupDestroy(programGroups[1]);
+	//optixProgramGroupDestroy(programGroups[1]);
 	optixModuleDestroy(module);
 	optixDeviceContextDestroy(optixContext);
 

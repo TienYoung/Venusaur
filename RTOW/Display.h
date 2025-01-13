@@ -8,17 +8,16 @@
 class Display
 {
 public:
-	Display(uint32_t width = 512, uint32_t height = 512);
+	Display(int width = 512, int height = 512);
 	Display() = delete;
 
-	bool IsRunning()
-	{
-		return !glfwWindowShouldClose(m_window);
-	}
+	bool IsRunning() const { return !glfwWindowShouldClose(m_window); }
+
+	int GetWidth() const { return m_width; }
+	int GetHeight() const { return m_height; }
+	GLuint GetPBO() const { return m_pbo; }
 
 	void Draw();
-
-	GLuint GetPBO() const { return m_pbo; }
 
 private:
 	GLFWwindow* m_window = nullptr;

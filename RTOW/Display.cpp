@@ -102,6 +102,7 @@ const std::string Display::s_vertexSource = R"(
 		{
 			uv0 = vec2((gl_VertexID << 1) & 2, gl_VertexID & 2);
 			gl_Position = vec4(uv0 * 2 - 1, 0, 1);
+			uv0.y = 1 - uv0.y;
 		}
 	)";
 
@@ -183,7 +184,7 @@ static void s_WindowResizeCallback(GLFWwindow* window, int width, int height)
 	//outputBuffer->resize(width, height);
 }
 
-Display::Display(uint32_t width, uint32_t height)
+Display::Display(int width, int height)
 	: m_width(width), m_height(height)
 {
 	// Init GLFW.
