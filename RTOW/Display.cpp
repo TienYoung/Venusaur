@@ -29,8 +29,6 @@ GLuint createGLShader(const std::string& source, GLuint shader_type)
 		}
 	}
 
-	//GL_CHECK_ERRORS();
-
 	return shader;
 }
 
@@ -77,8 +75,6 @@ GLuint createGLProgram(
 
 	glDetachShader(program, vert_shader);
 	glDetachShader(program, frag_shader);
-
-	//GL_CHECK_ERRORS();
 
 	return program;
 }
@@ -180,8 +176,7 @@ static void s_KeyCallback(GLFWwindow* window, int32_t key, int32_t /*scancode*/,
 
 static void s_WindowResizeCallback(GLFWwindow* window, int width, int height)
 {
-	//auto outputBuffer = static_cast<CUDAOutputBuffer<uchar4>*>(glfwGetWindowUserPointer(window));
-	//outputBuffer->resize(width, height);
+	glViewport(0, 0, width, height);
 }
 
 Display::Display(int width, int height)
@@ -263,8 +258,6 @@ Display::Display(int width, int height)
 
 void Display::Draw()
 {
-	glViewport(0, 0, m_width, m_height);
-
 	GLfloat clearColor[] = { 0.0f, 0.0f, 0.0f, 1.0f };
 	GLfloat clearDepth = 0.0f;
 	glClearNamedFramebufferfv(0, GL_COLOR, 0, clearColor);
@@ -278,17 +271,13 @@ void Display::Draw()
 
 	glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
 
-	//glEnable(GL_FRAMEBUFFER_SRGB);
 	glTextureSubImage2D(m_renderTex, 0, 0, 0, m_width, m_height, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
-	//glDisable(GL_FRAMEBUFFER_SRGB);
 
 	glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
 	glUniform1i(m_renderTextureUniformLocation, 0);
 
 	glBindVertexArray(m_vao);
 	glDrawArrays(GL_TRIANGLES, 0, 3);
-
-	//GL_CHECK_ERRORS();
 
 	glfwSwapBuffers(m_window);
 	glfwPollEvents();

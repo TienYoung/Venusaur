@@ -21,5 +21,9 @@ extern "C" __global__ void __raygen__uv()
 	auto g = double(j) / (image_height - 1);
 	auto b = 0.0;
 
-	params.image[j * image_width + i] = make_color(make_float3(r, g, b));
+	int ir = int(255.999 * r);
+	int ig = int(255.999 * g);
+	int ib = int(255.999 * b);
+
+	params.image[j * image_width + i] = make_uchar4(ir, ig, ib, 255u);
 }
