@@ -26,9 +26,9 @@ Open the project solution file (`.sln`) with Visual Studio 2022 and build it dir
 
 ---
 
-## 📷 Screenshot
+## 🎬 Demonstration
 
-![image](https://github.com/user-attachments/assets/27022608-16e1-4114-9add-c08dbed44cf2)
+https://github.com/user-attachments/assets/7acad9c4-3fba-44d5-85d4-c31a4c142154
 
 ---
 
