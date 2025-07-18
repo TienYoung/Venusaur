@@ -1,4 +1,4 @@
-#include "Camera.h"
+#include "camera.h"
 
 const glm::vec3& Camera::m_defaultForward = glm::vec3(0.0f, 0.0f, -1.0f);
 
