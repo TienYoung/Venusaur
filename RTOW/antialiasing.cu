@@ -2,10 +2,12 @@
 
 #include <optix.h>
 
-#include "sphere.h"
+#include <random.h>
+
+#include "antialiasing.h"
 
 extern "C" {
-__constant__ ParamsSphere params;
+__constant__ ParamsAntialiasing params;
 }
 
 extern "C"
@@ -18,34 +20,41 @@ __global__ void __raygen__()
     int image_width = launchDimensions.x;
     // int image_height = launchDimensions.y;
 
+    int samples_per_pixel = params.samples_per_pixel;
+    unsigned int seed = tea<4>( i, j );
+
     // Trace the ray against our scene hierarchy
     unsigned int p0, p1, p2;
-    
-    auto pixel_center = params.pixel00_loc + (i * params.pixel_delta_u) + (j * params.pixel_delta_v);
-    auto ray_origin = params.camera_center;
-    auto ray_direction = pixel_center - params.camera_center;
-    
-    optixTrace(
-        params.handle,
-        ray_origin,
-        ray_direction,
-        0.0f,                // Min intersection distance
-        FLT_MAX,               // Max intersection distance
-        0.0f,                // rayTime -- used for motion blur
-        OptixVisibilityMask(255), // Specify always visible
-        OPTIX_RAY_FLAG_NONE,
-        0,                   // SBT offset   -- See SBT discussion
-        0,                   // SBT stride   -- See SBT discussion
-        0,                   // missSBTIndex -- See SBT discussion
-        p0, p1, p2 );
-        
-    float3 result = {
-        .x = __uint_as_float(p0),
-        .y = __uint_as_float(p1),
-        .z = __uint_as_float(p2),
-    };
+    float3 result = make_float3(0.0f, 0.0f, 0.0f);
+    for(int sample = 0; sample < samples_per_pixel; sample++)
+    {
+        const float2 offset = make_float2( rnd( seed ) - 0.5f, rnd( seed )- 0.5f );
 
-    write_color(params.image[j * image_width + i], result);
+        auto pixel_center = params.pixel00_loc + ((i + offset.x) * params.pixel_delta_u) + ((j + offset.y) * params.pixel_delta_v);
+        auto ray_origin = params.camera_center;
+        auto ray_direction = pixel_center - params.camera_center;
+
+        optixTrace(
+                params.handle,
+                ray_origin,
+                ray_direction,
+                0.0f,                // Min intersection distance
+                FLT_MAX,               // Max intersection distance
+                0.0f,                // rayTime -- used for motion blur
+                OptixVisibilityMask(255), // Specify always visible
+                OPTIX_RAY_FLAG_NONE,
+                0,                   // SBT offset   -- See SBT discussion
+                0,                   // SBT stride   -- See SBT discussion
+                0,                   // missSBTIndex -- See SBT discussion
+                p0, p1, p2 );
+
+        result.x += __uint_as_float( p0 );
+        result.y += __uint_as_float( p1 );
+        result.z += __uint_as_float( p2 );
+    }
+
+
+    write_color(params.image[j * image_width + i], result / samples_per_pixel);
 }
 
 extern "C"
