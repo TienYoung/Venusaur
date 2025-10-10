@@ -2,13 +2,13 @@
 
 #include <params.h>
 
-struct ParamsSphere : Params
+struct ParamsSphere : public Params
 {
+    OptixTraversableHandle handle;
     float3 camera_center;
     float3 pixel00_loc;
     float3 pixel_delta_u;
     float3 pixel_delta_v;
-    OptixTraversableHandle handle;
 };
 
 __forceinline__ __device__  color ray_color(const float3& ray_direction) {

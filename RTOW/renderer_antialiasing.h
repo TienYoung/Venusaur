@@ -15,23 +15,23 @@
 #include <output_buffer.h>
 #include <renderer_base.h>
 
-#include "sphere.h"
+#include "antialiasing.h"
 
 namespace RayTracingInOneWeekend
 {
 	using glm::vec3;
 	using point3 = vec3;
 	
-	class RendererNormal : public Venusaur::RendererBase
+	class RendererAntialiasing : public Venusaur::RendererBase
     {
         public:
-		RendererNormal(std::shared_ptr<Venusaur::OutputBuffer> outputBuffer, const std::vector<char>& optixIR) :
+		RendererAntialiasing(std::shared_ptr<Venusaur::OutputBuffer> outputBuffer, const std::vector<char>& optixIR) :
 			Venusaur::RendererBase(outputBuffer, 1)
 		{
 			Initialize(optixIR);
 		}
 
-		~RendererNormal() override
+		~RendererAntialiasing() override
 		{
 			// CUDA_CHECK(cudaFree(reinterpret_cast<void*>(d_gasBuffer)));
 			CUDA_CHECK(cudaFree(reinterpret_cast<void*>(m_sbt.raygenRecord)));
@@ -328,7 +328,7 @@ namespace RayTracingInOneWeekend
 				.callablesRecordCount = 0,
 			};
 
-			CUDA_CHECK(cudaMalloc(reinterpret_cast<void**>(&d_params), sizeof(ParamsSphere)));
+			CUDA_CHECK(cudaMalloc(reinterpret_cast<void**>(&d_params), sizeof(ParamsAntialiasing)));
 		}
 
 		size_t UpdateParams() override
@@ -351,15 +351,15 @@ namespace RayTracingInOneWeekend
 			auto viewport_upper_left = camera_center - vec3(0, 0, focal_length) - viewport_u/2.0f - viewport_v/2.0f;
 			auto pixel00_loc = viewport_upper_left + 0.5f * (pixel_delta_u + pixel_delta_v);
 
-			ParamsSphere params = {
-				.handle = m_gasHandle,
-				.camera_center = make_float3(camera_center.x, camera_center.y, camera_center.z),
-				.pixel00_loc = make_float3(pixel00_loc.x, pixel00_loc.y, pixel00_loc.z),
-				.pixel_delta_u = make_float3(pixel_delta_u.x, pixel_delta_u.y, pixel_delta_u.z),
-				.pixel_delta_v = make_float3(pixel_delta_v.x, pixel_delta_v.y, pixel_delta_v.z),
-			};
-			size_t paramsSize = sizeof(ParamsSphere);
+			ParamsAntialiasing params = {};
 			params.image = m_outputBuffer->Map(m_stream);
+			params.handle = m_gasHandle;
+			params.camera_center = make_float3(camera_center.x, camera_center.y, camera_center.z);
+			params.pixel00_loc = make_float3(pixel00_loc.x, pixel00_loc.y, pixel00_loc.z);
+			params.pixel_delta_u = make_float3(pixel_delta_u.x, pixel_delta_u.y, pixel_delta_u.z);
+			params.pixel_delta_v = make_float3(pixel_delta_v.x, pixel_delta_v.y, pixel_delta_v.z);
+			params.samples_per_pixel = 100;
+			size_t paramsSize = sizeof(ParamsAntialiasing);
 			CUDA_CHECK(cudaMemcpy(reinterpret_cast<void*>(d_params), &params, paramsSize, cudaMemcpyHostToDevice));
 
 			return paramsSize;

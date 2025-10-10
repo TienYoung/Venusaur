@@ -2,7 +2,7 @@
 
 #include <application.h>
 
-#include "renderer_normal.h"
+#include "renderer_diffuse.h"
 
 int main(int argc, char* argv[])
 {
@@ -15,11 +15,11 @@ int main(int argc, char* argv[])
 
 	auto app = std::make_unique<Venusaur::Application>(image_width, image_height);
 	
-	std::ifstream file{"normal.optixir", std::ios::binary};
+	std::ifstream file{"diffuse.optixir", std::ios::binary};
 	std::vector<char> optixIR(std::istreambuf_iterator<char>(file), {});
 	file.close();
 	
-	app->SetRenderer(std::make_shared<RayTracingInOneWeekend::RendererNormal>(app->GetOutputBuffer(), optixIR));
+	app->SetRenderer(std::make_shared<RayTracingInOneWeekend::RendererDiffuse>(app->GetOutputBuffer(), optixIR));
 
 	while(app->IsRunning())
 	{
