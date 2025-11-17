@@ -3,7 +3,7 @@
 #include "background.h"
 
 extern "C" {
-__constant__ ParamsBackground params;
+__constant__ BackgroundParams params;
 }
 
 extern "C"
@@ -19,6 +19,6 @@ __global__ void __raygen__()
     auto pixel_center = params.pixel00_loc + (i * params.pixel_delta_u) + (j * params.pixel_delta_v);
     auto ray_direction = pixel_center - params.camera_center;
 
-    color pixel_color = ray_color(ray_direction);
+    float3 pixel_color = ray_color(ray_direction);
     write_color(params.image[j * image_width + i], pixel_color);
 }

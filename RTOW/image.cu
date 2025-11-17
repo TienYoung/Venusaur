@@ -3,7 +3,7 @@
 #include "image.h"
 
 extern "C" {
-__constant__ Params params;
+__constant__ ImageParams params;
 }
 
 extern "C"

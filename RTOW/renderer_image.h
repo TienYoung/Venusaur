@@ -1,5 +1,7 @@
 #pragma once
 
+#include <array>
+
 #include <cuda_runtime.h>
 
 #include <optix.h>
@@ -17,23 +19,8 @@ namespace RayTracingInOneWeekend
 	class RendererImage : public Venusaur::RendererBase
 	{
 	public:
-		RendererImage(uint32_t width, uint32_t height, const std::vector<char>& optixIR) :
-			Venusaur::RendererBase(width, height)
-		{
-			Initialize(optixIR);
-		}
-
-		~RendererImage() override
-		{
-			CUDA_CHECK(cudaFree(reinterpret_cast<void*>(m_sbt.raygenRecord)));
-			CUDA_CHECK(cudaFree(reinterpret_cast<void*>(m_sbt.missRecordBase)));
-		}
-
-	private:
-		typedef SbtRecord<void>	RayGenSbtRecord;
-		typedef SbtRecord<void>	MissSbtRecord;
-
-		void Initialize(const std::vector<char>& optixIR) override
+		RendererImage(std::shared_ptr<Venusaur::OutputBuffer> outputBuffer, const std::vector<char>& optixIR) :
+			Venusaur::RendererBase(outputBuffer, 0)
 		{
 			OptixModuleCompileOptions moduleCompileOptions = {
 				.maxRegisterCount = OPTIX_COMPILE_DEFAULT_MAX_REGISTER_COUNT,
@@ -173,14 +160,24 @@ namespace RayTracingInOneWeekend
 			m_sbt.missRecordStrideInBytes = sizeof(MissSbtRecord);
 			m_sbt.missRecordCount = 1;
 
-			CUDA_CHECK(cudaMalloc(reinterpret_cast<void**>(&d_params), sizeof(Params)));
+			CUDA_CHECK(cudaMalloc(reinterpret_cast<void**>(&d_params), sizeof(ImageParams)));
 		}
+
+		~RendererImage() override
+		{
+			CUDA_CHECK(cudaFree(reinterpret_cast<void*>(m_sbt.raygenRecord)));
+			CUDA_CHECK(cudaFree(reinterpret_cast<void*>(m_sbt.missRecordBase)));
+		}
+
+	private:
+		typedef SbtRecord<void>	RayGenSbtRecord;
+		typedef SbtRecord<void>	MissSbtRecord;
 
 		size_t UpdateParams() override
 		{
-			ParamsImage params = {};
-			size_t paramsSize = sizeof(ParamsImage);
-			CUDA_CHECK(cudaGraphicsResourceGetMappedPointer(reinterpret_cast<void**>(&params.image), nullptr, m_outputResource));
+			ImageParams params = {};
+			params.image = m_outputBuffer->Map(m_stream);
+			size_t paramsSize = sizeof(ImageParams);
 			CUDA_CHECK(cudaMemcpy(reinterpret_cast<void*>(d_params), &params, paramsSize, cudaMemcpyHostToDevice));
 
 			return paramsSize;

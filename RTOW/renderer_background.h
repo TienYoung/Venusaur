@@ -1,5 +1,7 @@
 #pragma once
 
+#include <array>
+
 #include <cuda_runtime.h>
 
 #include <optix.h>
@@ -23,23 +25,8 @@ namespace RayTracingInOneWeekend
 	class RendererBackground : public Venusaur::RendererBase
     {
         public:
-		RendererBackground(uint32_t width, uint32_t height, const std::vector<char>& optixIR) :
-			Venusaur::RendererBase(width, height, 1)
-		{
-			Initialize(optixIR);
-		}
-
-		~RendererBackground() override
-		{
-			CUDA_CHECK(cudaFree(reinterpret_cast<void*>(m_sbt.raygenRecord)));
-			CUDA_CHECK(cudaFree(reinterpret_cast<void*>(m_sbt.missRecordBase)));
-		}
-
-	private:
-		typedef SbtRecord<void>	RayGenSbtRecord;
-		typedef SbtRecord<void>	MissSbtRecord;
-
-		void Initialize(const std::vector<char>& optixIR) override
+		RendererBackground(std::shared_ptr<Venusaur::OutputBuffer> outputBuffer, const std::vector<char>& optixIR) :
+			Venusaur::RendererBase(outputBuffer, 0)
 		{
 			OptixModuleCompileOptions moduleCompileOptions = {
 				.maxRegisterCount = OPTIX_COMPILE_DEFAULT_MAX_REGISTER_COUNT,
@@ -179,8 +166,18 @@ namespace RayTracingInOneWeekend
 			m_sbt.missRecordStrideInBytes = sizeof(MissSbtRecord);
 			m_sbt.missRecordCount = 1;
 
-			CUDA_CHECK(cudaMalloc(reinterpret_cast<void**>(&d_params), sizeof(ParamsBackground)));
+			CUDA_CHECK(cudaMalloc(reinterpret_cast<void**>(&d_params), sizeof(BackgroundParams)));
 		}
+
+		~RendererBackground() override
+		{
+			CUDA_CHECK(cudaFree(reinterpret_cast<void*>(m_sbt.raygenRecord)));
+			CUDA_CHECK(cudaFree(reinterpret_cast<void*>(m_sbt.missRecordBase)));
+		}
+
+	private:
+		typedef SbtRecord<void>	RayGenSbtRecord;
+		typedef SbtRecord<void>	MissSbtRecord;
 
 		size_t UpdateParams() override
 		{
@@ -202,14 +199,14 @@ namespace RayTracingInOneWeekend
 			auto viewport_upper_left = camera_center - vec3(0, 0, focal_length) - viewport_u/2.0f - viewport_v/2.0f;
 			auto pixel00_loc = viewport_upper_left + 0.5f * (pixel_delta_u + pixel_delta_v);
 
-			ParamsBackground params = {
+			BackgroundParams params = {
+				.image = m_outputBuffer->Map(m_stream),
 				.camera_center = make_float3(camera_center.x, camera_center.y, camera_center.z),
 				.pixel00_loc = make_float3(pixel00_loc.x, pixel00_loc.y, pixel00_loc.z),
 				.pixel_delta_u = make_float3(pixel_delta_u.x, pixel_delta_u.y, pixel_delta_u.z),
 				.pixel_delta_v = make_float3(pixel_delta_v.x, pixel_delta_v.y, pixel_delta_v.z),
 			};
-			size_t paramsSize = sizeof(ParamsBackground);
-			CUDA_CHECK(cudaGraphicsResourceGetMappedPointer(reinterpret_cast<void**>(&params.image), nullptr, m_outputResource));
+			size_t paramsSize = sizeof(BackgroundParams);
 			CUDA_CHECK(cudaMemcpy(reinterpret_cast<void*>(d_params), &params, paramsSize, cudaMemcpyHostToDevice));
 
 			return paramsSize;

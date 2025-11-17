@@ -44,10 +44,10 @@ Venusaur::RendererBase::RendererBase(std::shared_ptr<OutputBuffer> outputBuffer,
 		.logCallbackFunction = &ContextLogCallback,
 		.logCallbackData = nullptr,
 		.logCallbackLevel = 4,
-		#ifdef _DEBUG
+#ifdef _DEBUG
 		// This may incur significant performance cost and should only be done during development.
 		.validationMode = OPTIX_DEVICE_CONTEXT_VALIDATION_MODE_ALL,
-		#endif
+#endif
 	};
 	OPTIX_CHECK(optixDeviceContextCreate(cuCtx, &options, &m_context));
 }
@@ -56,9 +56,6 @@ Venusaur::RendererBase::~RendererBase()
 {
 	OPTIX_CHECK(optixPipelineDestroy(m_pipeline));
 	OPTIX_CHECK(optixDeviceContextDestroy(m_context));
-	
-	// CUDA_CHECK(cudaFree(reinterpret_cast<void*>(m_state.params.accum)));
-	CUDA_CHECK(cudaFree(reinterpret_cast<void*>(d_params)));
 }
 
 void Venusaur::RendererBase::Draw()

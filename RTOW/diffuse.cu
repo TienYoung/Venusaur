@@ -30,7 +30,7 @@ static __forceinline__ __device__ void SetDiffusePayload(DiffusePayload payload)
 }
 
 extern "C" {
-__constant__ ParamsDiffuse params;
+__constant__ DiffuseParams params;
 }
 
 extern "C"
@@ -149,7 +149,7 @@ extern "C"
 __global__ void __miss__()
 {
     auto ray_direction = optixGetWorldRayDirection();
-    color pixel_color = ray_color(ray_direction);
+    float3 pixel_color = ray_color(ray_direction);
     
     SetDiffusePayload(DiffusePayload {
         .seed = optixGetPayload_0(),
