@@ -7,7 +7,7 @@
 #include "antialiasing.h"
 
 extern "C" {
-__constant__ ParamsAntialiasing params;
+__constant__ AntialiasingParams params;
 }
 
 extern "C"
@@ -94,7 +94,7 @@ extern "C"
 __global__ void __miss__()
 {
     auto ray_direction = optixGetWorldRayDirection();
-    color pixel_color = ray_color(ray_direction);
+    float3 pixel_color = ray_color(ray_direction);
     
     optixSetPayload_0( __float_as_uint( pixel_color.x ) );
     optixSetPayload_1( __float_as_uint( pixel_color.y ) );

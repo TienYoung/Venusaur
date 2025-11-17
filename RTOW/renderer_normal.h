@@ -28,27 +28,6 @@ namespace RayTracingInOneWeekend
 		RendererNormal(std::shared_ptr<Venusaur::OutputBuffer> outputBuffer, const std::vector<char>& optixIR) :
 			Venusaur::RendererBase(outputBuffer, 1)
 		{
-			Initialize(optixIR);
-		}
-
-		~RendererNormal() override
-		{
-			// CUDA_CHECK(cudaFree(reinterpret_cast<void*>(d_gasBuffer)));
-			CUDA_CHECK(cudaFree(reinterpret_cast<void*>(m_sbt.raygenRecord)));
-			CUDA_CHECK(cudaFree(reinterpret_cast<void*>(m_sbt.missRecordBase)));
-			CUDA_CHECK(cudaFree(reinterpret_cast<void*>(m_sbt.hitgroupRecordBase)));
-		}
-
-	private:
-		typedef SbtRecord<void>	RayGenSbtRecord;
-		typedef SbtRecord<void>	MissSbtRecord;
-		typedef SbtRecord<void> HitGroupSbtRecord;
-
-		OptixTraversableHandle m_gasHandle = 0;
-		// CUdeviceptr d_gasBuffer = NULL;
-
-		void Initialize(const std::vector<char>& optixIR) override
-		{
 			{
 				OptixAccelBuildOptions accelBuildOption = {
 					.buildFlags = OPTIX_BUILD_FLAG_ALLOW_RANDOM_VERTEX_ACCESS,
@@ -122,7 +101,8 @@ namespace RayTracingInOneWeekend
 					0
 				));
 
-				// d_gasBuffer = d_gasOutputBuffer;
+				CUDA_CHECK(cudaFree(reinterpret_cast<void*>(d_gasTempBuffer)));
+				d_gasBuffer = d_gasOutputBuffer;
 			}
 
 			OptixModuleCompileOptions moduleCompileOptions = {
@@ -328,8 +308,24 @@ namespace RayTracingInOneWeekend
 				.callablesRecordCount = 0,
 			};
 
-			CUDA_CHECK(cudaMalloc(reinterpret_cast<void**>(&d_params), sizeof(ParamsSphere)));
+			CUDA_CHECK(cudaMalloc(reinterpret_cast<void**>(&d_params), sizeof(SphereParams)));
 		}
+
+		~RendererNormal() override
+		{
+			CUDA_CHECK(cudaFree(reinterpret_cast<void*>(d_gasBuffer)));
+			CUDA_CHECK(cudaFree(reinterpret_cast<void*>(m_sbt.raygenRecord)));
+			CUDA_CHECK(cudaFree(reinterpret_cast<void*>(m_sbt.missRecordBase)));
+			CUDA_CHECK(cudaFree(reinterpret_cast<void*>(m_sbt.hitgroupRecordBase)));
+		}
+
+	private:
+		typedef SbtRecord<void>	RayGenSbtRecord;
+		typedef SbtRecord<void>	MissSbtRecord;
+		typedef SbtRecord<void> HitGroupSbtRecord;
+
+		OptixTraversableHandle m_gasHandle = 0;
+		CUdeviceptr d_gasBuffer = NULL;
 
 		size_t UpdateParams() override
 		{
@@ -351,15 +347,15 @@ namespace RayTracingInOneWeekend
 			auto viewport_upper_left = camera_center - vec3(0, 0, focal_length) - viewport_u/2.0f - viewport_v/2.0f;
 			auto pixel00_loc = viewport_upper_left + 0.5f * (pixel_delta_u + pixel_delta_v);
 
-			ParamsSphere params = {
-				.handle = m_gasHandle,
+			SphereParams params = {
+				.image = m_outputBuffer->Map(m_stream),
 				.camera_center = make_float3(camera_center.x, camera_center.y, camera_center.z),
 				.pixel00_loc = make_float3(pixel00_loc.x, pixel00_loc.y, pixel00_loc.z),
 				.pixel_delta_u = make_float3(pixel_delta_u.x, pixel_delta_u.y, pixel_delta_u.z),
 				.pixel_delta_v = make_float3(pixel_delta_v.x, pixel_delta_v.y, pixel_delta_v.z),
+				.handle = m_gasHandle,
 			};
-			size_t paramsSize = sizeof(ParamsSphere);
-			params.image = m_outputBuffer->Map(m_stream);
+			size_t paramsSize = sizeof(SphereParams);
 			CUDA_CHECK(cudaMemcpy(reinterpret_cast<void*>(d_params), &params, paramsSize, cudaMemcpyHostToDevice));
 
 			return paramsSize;

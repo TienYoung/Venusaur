@@ -1,10 +1,17 @@
 #pragma once
 
-#include "antialiasing.h"
+#include <params.h>
 
-struct ParamsDiffuse: public ParamsAntialiasing
+struct DiffuseParams
 {
+    uchar4* image;
+    float3 camera_center;
+    float3 pixel00_loc;
+    float3 pixel_delta_u;
+    float3 pixel_delta_v;
+    unsigned int samples_per_pixel;
     unsigned int subframe_index;
+    OptixTraversableHandle handle;
 };
 
 struct DiffusePayload

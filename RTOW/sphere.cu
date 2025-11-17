@@ -3,7 +3,7 @@
 #include "sphere.h"
 
 extern "C" {
-__constant__ ParamsSphere params;
+__constant__ SphereParams params;
 }
 
 extern "C"
@@ -43,14 +43,6 @@ __global__ void __raygen__()
     write_color(params.image[j * image_width + i], result);
 }
 
-// extern "C"
-// __global__ void __closesthit__()
-// {
-//     optixSetPayload_0( __float_as_uint( 1.0f ) );
-//     optixSetPayload_1( __float_as_uint( 0.0f ) );
-//     optixSetPayload_2( __float_as_uint( 0.0f ) );
-// }
-
 extern "C"
 __global__ void __anyhit__()
 {
@@ -63,7 +55,7 @@ extern "C"
 __global__ void __miss__()
 {
     auto ray_direction = optixGetWorldRayDirection();
-    color pixel_color = ray_color(ray_direction);
+    float3 pixel_color = ray_color(ray_direction);
     
     optixSetPayload_0( __float_as_uint( pixel_color.x ) );
     optixSetPayload_1( __float_as_uint( pixel_color.y ) );

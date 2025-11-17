@@ -14,7 +14,7 @@ namespace Venusaur
 	class RendererBase
 	{
 	public:
-		RendererBase(std::shared_ptr<OutputBuffer> outputBuffer, uint32_t maxTraceDepth = 0);
+		RendererBase(std::shared_ptr<OutputBuffer> outputBuffer, uint32_t maxTraceDepth);
 		
 		virtual ~RendererBase();
 		
@@ -47,8 +47,6 @@ namespace Venusaur
 		{
 			char header[OPTIX_SBT_RECORD_HEADER_SIZE];
 		};
-
-		virtual void Initialize(const std::vector<char>& optixIR) = 0;
 
 		virtual size_t UpdateParams() = 0;
 	};

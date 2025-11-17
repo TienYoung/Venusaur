@@ -66,7 +66,7 @@ target("optixir")
     set_rules()
     set_kind("object")
     set_toolchains("cuda")
-    add_cuflags("-Wno-deprecated-gpu-targets", "-optix-ir", "-lineinfo", "--use_fast_math")
+    add_cuflags("-Wno-deprecated-gpu-targets", "-optix-ir", "-lineinfo", "--use_fast_math", "-allow-unsupported-compiler")
     add_includedirs("C:\\ProgramData\\NVIDIA Corporation\\OptiX SDK 9.0.0\\include", "core/include")
     add_files("rtow/*.cu")
 

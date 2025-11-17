@@ -1,14 +1,6 @@
 #pragma once
 
-struct Params
-{
-    uchar4* image;
-};
-
-using vec3 = float3;
-using color = vec3;
-
-__forceinline__ __device__ void write_color(uchar4& out, const color& pixel_color)
+__forceinline__ __device__ void write_color(uchar4& out, const float3& pixel_color)
 {
     auto r = pixel_color.x;
     auto g = pixel_color.y;
@@ -107,4 +99,10 @@ __forceinline__ __device__ float3 unit_vector(const float3& v)
 {
   float invLen = 1.0f / sqrtf(dot(v, v));
   return v * invLen;
+}
+
+__forceinline__ __device__  float3 ray_color(const float3& ray_direction) {
+    float3 unit_direction = unit_vector(ray_direction);
+    auto a = 0.5f * (unit_direction.y + 1.0f);
+    return (1.0f - a) * float3(1.0f, 1.0f, 1.0f) + a * float3(0.5f, 0.7f, 1.0f);
 }
