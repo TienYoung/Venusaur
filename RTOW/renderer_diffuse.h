@@ -1,6 +1,7 @@
 #pragma once
 
 #include <array>
+#include <vector>
 
 #include <cstddef>
 #include <cuda_runtime.h>
@@ -20,14 +21,11 @@
 
 namespace RayTracingInOneWeekend
 {
-	using glm::vec3;
-	using point3 = vec3;
-	
 	class RendererDiffuse : public Venusaur::RendererBase
     {
         public:
 		RendererDiffuse(std::shared_ptr<Venusaur::OutputBuffer> outputBuffer, const std::vector<char>& optixIR) :
-			Venusaur::RendererBase(outputBuffer, 2)
+			Venusaur::RendererBase(outputBuffer, 31)
 		{
 			{
 				OptixAccelBuildOptions accelBuildOption = {
@@ -339,15 +337,15 @@ namespace RayTracingInOneWeekend
 			auto focal_length = 1.0;
 			auto viewport_height = 2.0;
 			auto viewport_width = viewport_height * (double(image_width)/image_height);
-			auto camera_center = point3(0, 0, 0);
+			auto camera_center = glm::vec3(0, 0, 0);
 			// Calculate the vectors across the horizontal and down the vertical viewport edges.
-			auto viewport_u = vec3(viewport_width, 0, 0);
-			auto viewport_v = vec3(0, -viewport_height, 0);
+			auto viewport_u = glm::vec3(viewport_width, 0, 0);
+			auto viewport_v = glm::vec3(0, -viewport_height, 0);
 			// Calculate the horizontal and vertical delta vectors from pixel to pixel.
 			auto pixel_delta_u = viewport_u / (float)image_width;
 			auto pixel_delta_v = viewport_v / (float)image_height;
 			// Calculate the location of the upper left pixel.
-			auto viewport_upper_left = camera_center - vec3(0, 0, focal_length) - viewport_u/2.0f - viewport_v/2.0f;
+			auto viewport_upper_left = camera_center - glm::vec3(0, 0, focal_length) - viewport_u/2.0f - viewport_v/2.0f;
 			auto pixel00_loc = viewport_upper_left + 0.5f * (pixel_delta_u + pixel_delta_v);
 
 			DiffuseParams params = {
@@ -356,7 +354,7 @@ namespace RayTracingInOneWeekend
 				.pixel00_loc = make_float3(pixel00_loc.x, pixel00_loc.y, pixel00_loc.z),
 				.pixel_delta_u = make_float3(pixel_delta_u.x, pixel_delta_u.y, pixel_delta_u.z),
 				.pixel_delta_v = make_float3(pixel_delta_v.x, pixel_delta_v.y, pixel_delta_v.z),
-				.samples_per_pixel = 100,
+				.samples_per_pixel = 1,
 				.subframe_index = m_subframeIndex++,
 				.handle = m_gasHandle,
 			};

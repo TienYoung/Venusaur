@@ -43,9 +43,9 @@ __global__ void __raygen__()
     int image_width = launchDimensions.x;
     // int image_height = launchDimensions.y;
 
-    unsigned int samples_per_pixel = params.samples_per_pixel;
+    uint32_t samples_per_pixel = params.samples_per_pixel;
     
-    unsigned int seed = tea<4>( j * image_width + i,  params.subframe_index);
+    uint32_t seed = tea<4>( j * image_width + i,  params.subframe_index);
     DiffusePayload payload = {
         .seed = seed,
         .depth = 31,
@@ -53,7 +53,7 @@ __global__ void __raygen__()
     };
     
     float3 result = make_float3(0.0f, 0.0f, 0.0f);
-    for(unsigned int sample = 0; sample < samples_per_pixel; sample++)
+    for(uint32_t sample = 0; sample < samples_per_pixel; sample++)
     {
         const float2 offset = make_float2( rnd( seed ) - 0.5f, rnd( seed )- 0.5f );
 
@@ -61,7 +61,7 @@ __global__ void __raygen__()
         auto ray_origin = params.camera_center;
         auto ray_direction = pixel_center - params.camera_center;
 
-        unsigned int u0, u1, u2, u3, u4;
+        uint32_t u0, u1, u2, u3, u4;
         u0 = payload.seed;
         u1 = payload.depth;
         u2 = __float_as_uint(payload.diffuse.x);
@@ -72,7 +72,7 @@ __global__ void __raygen__()
                 ray_origin,
                 ray_direction,
                 0.0f,                // Min intersection distance
-                FLT_MAX,               // Max intersection distance
+                FLT_MAX,             // Max intersection distance
                 0.0f,                // rayTime -- used for motion blur
                 OptixVisibilityMask(255), // Specify always visible
                 OPTIX_RAY_FLAG_NONE,
@@ -97,13 +97,13 @@ __global__ void __closesthit__()
     DiffusePayload payload = GetDiffusePayload();
     --payload.depth;
 
-    if (payload.depth == 0)
+    if (payload.depth <= 0)
     {
         SetDiffusePayload(payload);
         return;
     }
 
-    unsigned int seed = payload.seed;
+    uint32_t seed = payload.seed;
     const float z1 = rnd(seed);
     const float z2 = rnd(seed);
     float3 w_in;
@@ -116,7 +116,7 @@ __global__ void __closesthit__()
 
     // SetDiffusePayload(payload);
 
-    unsigned int u0, u1, u2, u3, u4;
+    uint32_t u0, u1, u2, u3, u4;
     u0 = payload.seed;
     u1 = payload.depth;
     u2 = __float_as_uint(payload.diffuse.x);
