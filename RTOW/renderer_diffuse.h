@@ -25,7 +25,7 @@ namespace RayTracingInOneWeekend
     {
         public:
 		RendererDiffuse(std::shared_ptr<Venusaur::OutputBuffer> outputBuffer, const std::vector<char>& optixIR) :
-			Venusaur::RendererBase(outputBuffer, 31)
+			Venusaur::RendererBase(outputBuffer, 1)
 		{
 			{
 				OptixAccelBuildOptions accelBuildOption = {
@@ -354,7 +354,7 @@ namespace RayTracingInOneWeekend
 				.pixel00_loc = make_float3(pixel00_loc.x, pixel00_loc.y, pixel00_loc.z),
 				.pixel_delta_u = make_float3(pixel_delta_u.x, pixel_delta_u.y, pixel_delta_u.z),
 				.pixel_delta_v = make_float3(pixel_delta_v.x, pixel_delta_v.y, pixel_delta_v.z),
-				.samples_per_pixel = 1,
+				.samples_per_pixel = 100,
 				.subframe_index = m_subframeIndex++,
 				.handle = m_gasHandle,
 			};
