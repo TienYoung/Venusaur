@@ -11,7 +11,7 @@ static __forceinline__ __device__ DiffusePayload GetDiffusePayload()
 {
     return DiffusePayload {
         .seed = optixGetPayload_0(),
-        .done = optixGetPayload_1(),
+        .depth = optixGetPayload_1(),
         .origin = {
             .x = __uint_as_float(optixGetPayload_2()),
             .y = __uint_as_float(optixGetPayload_3()),
@@ -33,7 +33,7 @@ static __forceinline__ __device__ DiffusePayload GetDiffusePayload()
 static __forceinline__ __device__ void SetDiffusePayload(DiffusePayload payload)
 {
     optixSetPayload_0(payload.seed);
-    optixSetPayload_1(payload.done);
+    optixSetPayload_1(payload.depth);
     optixSetPayload_2(__float_as_uint(payload.origin.x));
     optixSetPayload_3(__float_as_uint(payload.origin.y));
     optixSetPayload_4(__float_as_uint(payload.origin.z));
@@ -72,7 +72,7 @@ __global__ void __raygen__()
 
         DiffusePayload payload = {
             .seed = seed,
-            .done = false,
+            .depth = 50,
             .origin = ray_origin,
             .direction = ray_direction,
             .diffuse = make_float3(1.0f, 1.0f, 1.0f),
@@ -82,7 +82,7 @@ __global__ void __raygen__()
         {
             uint32_t u0, u1, u2, u3, u4, u5, u6, u7, u8, u9, u10;
             u0 = payload.seed;
-            u1 = payload.done;
+            u1 = payload.depth;
             u2 = __float_as_uint(payload.origin.x);
             u3 = __float_as_uint(payload.origin.y);
             u4 = __float_as_uint(payload.origin.z);
@@ -97,7 +97,7 @@ __global__ void __raygen__()
                     params.handle,
                     ray_origin,
                     ray_direction,
-                    0.0f,                // Min intersection distance
+                    FLT_MIN,             // Min intersection distance
                     FLT_MAX,             // Max intersection distance
                     0.0f,                // rayTime -- used for motion blur
                     OptixVisibilityMask(255), // Specify always visible
@@ -110,7 +110,7 @@ __global__ void __raygen__()
             optixInvoke(u0, u1, u2, u3, u4, u5, u6, u7, u8, u9, u10);
 
             payload.seed = u0;
-            payload.done = u1;
+            payload.depth = u1;
             payload.origin = {
                 .x = __uint_as_float(u2),
                 .y = __uint_as_float(u3),
@@ -130,7 +130,7 @@ __global__ void __raygen__()
             ray_origin = payload.origin;
             ray_direction = payload.direction;
         } 
-        while(!payload.done);
+        while(payload.depth != 0); 
         
         result += payload.diffuse;
     }
@@ -168,27 +168,12 @@ __global__ void __closesthit__()
     Onb onb( world_normal );
     onb.inverse_transform( w_in );
     // const float3 ray_dir = optixGetWorldRayDirection();
-    const float3 P = optixGetWorldRayOrigin() + optixGetRayTmax()*ray_dir;
+    const float3 P = optixGetWorldRayOrigin() + optixGetRayTmax() * ray_dir;
 
-
-    // optixTraverse(
-    //     params.handle,
-    //     P,
-    //     w_in,
-    //     0.0f,                     // Min intersection distance
-    //     FLT_MAX,                  // Max intersection distance
-    //     0.0f,                     // rayTime -- used for motion blur
-    //     OptixVisibilityMask(255), // Specify always visible
-    //     OPTIX_RAY_FLAG_TERMINATE_ON_FIRST_HIT | OPTIX_RAY_FLAG_DISABLE_ANYHIT,
-    //     0,                        // SBT offset   -- See SBT discussion
-    //     0,                        // SBT stride   -- See SBT discussion
-    //     0                         // missSBTIndex -- See SBT discussion
-    // );
-    
-    payload.done = false;
+    payload.depth--;
     payload.origin = P;
     payload.direction = w_in;
-    payload.diffuse *= 0.5f;
+    payload.diffuse *= payload.depth > 0 ? 0.5f : 0.0f;
 
     SetDiffusePayload(payload);
 }
@@ -201,7 +186,7 @@ __global__ void __miss__()
     auto ray_direction = optixGetWorldRayDirection();
     float3 pixel_color = ray_color(ray_direction);
     
-    payload.done = true;
+    payload.depth = 0;
     payload.diffuse *= pixel_color;
 
     SetDiffusePayload(payload);

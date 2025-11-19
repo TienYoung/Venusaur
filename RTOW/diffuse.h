@@ -17,7 +17,7 @@ struct DiffuseParams
 struct DiffusePayload
 {
     uint32_t seed;
-    uint32_t done;
+    uint32_t depth;
     float3 origin;
     float3 direction;
     float3 diffuse;
