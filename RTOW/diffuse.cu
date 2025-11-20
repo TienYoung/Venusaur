@@ -1,5 +1,3 @@
-#include <cfloat>
-
 #include <optix.h>
 
 #include <random.h>
@@ -60,9 +58,9 @@ __global__ void __raygen__()
     // int image_height = launchDimensions.y;
     
     float3 result = float3{.x = 0.0f, .y = 0.0f, .z = 0.0f };
-    uint32_t seed = tea<4>( j * image_width + i,  params.subframe_index);
-    uint32_t samples_per_pixel = params.samples_per_pixel;
-    for(uint32_t sample = 0; sample < samples_per_pixel; sample++)
+    unsigned int seed = tea<4>( j * image_width + i,  params.subframe_index);
+    unsigned int samples_per_pixel = params.samples_per_pixel;
+    for(unsigned int sample = 0; sample < samples_per_pixel; sample++)
     {
         const float2 offset = make_float2(rnd(seed) - 0.5f, rnd(seed) - 0.5f);
 
@@ -80,7 +78,7 @@ __global__ void __raygen__()
 
         do
         {
-            uint32_t u0, u1, u2, u3, u4, u5, u6, u7, u8, u9, u10;
+            unsigned int u0, u1, u2, u3, u4, u5, u6, u7, u8, u9, u10;
             u0 = payload.seed;
             u1 = payload.depth;
             u2 = __float_as_uint(payload.origin.x);
@@ -97,8 +95,8 @@ __global__ void __raygen__()
                     params.handle,
                     ray_origin,
                     ray_direction,
-                    FLT_MIN,             // Min intersection distance
-                    FLT_MAX,             // Max intersection distance
+                    0.001f,             // Min intersection distance
+                    10000000.0f,             // Max intersection distance
                     0.0f,                // rayTime -- used for motion blur
                     OptixVisibilityMask(255), // Specify always visible
                     OPTIX_RAY_FLAG_NONE,

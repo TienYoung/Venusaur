@@ -1,7 +1,11 @@
 #include <fstream>
+#include <vector>
+
+#include <nvrtc.h>
 
 #include <application.h>
 
+#include "exception.h"
 #include "renderer_image.h"
 #include "renderer_background.h"
 #include "renderer_sphere.h"
@@ -20,11 +24,32 @@ int main(int argc, char* argv[])
 
     auto app = std::make_unique<Venusaur::Application>(image_width, image_height);
 
-    std::ifstream file{"diffuse.optixir", std::ios::binary};
-    std::vector<char> optixIR(std::istreambuf_iterator<char>(file), {});
+    auto file = std::ifstream{"diffuse.cu"};
+    auto source = std::string{std::istreambuf_iterator<char>{file}, std::istreambuf_iterator<char>{}};
     file.close();
 
-    app->SetRenderer(std::make_shared<RayTracingInOneWeekend::RendererDiffuse>(app->GetOutputBuffer(), optixIR));
+    auto program = nvrtcProgram{};
+    NVRTC_SAFE_CALL(nvrtcCreateProgram(&program, source.c_str(), "diffuse.cu", 0, NULL, NULL));
+    const char* const options[] = {
+        "-std=c++20",
+        "-optix-ir",
+        "-IC:\\ProgramData\\NVIDIA Corporation\\OptiX SDK 9.0.0\\include",
+        "-IE:\\Development\\Venusaur\\rtow",
+        "-IE:\\Development\\Venusaur\\core\\include",
+    };
+    NVRTC_SAFE_CALL(nvrtcCompileProgram(program, 5, options));
+    auto size = size_t{};
+    auto log = std::string{};
+    NVRTC_SAFE_CALL(nvrtcGetProgramLogSize(program, &size));
+    log.resize(size);
+    NVRTC_SAFE_CALL(nvrtcGetProgramLog(program, log.data()));
+    auto optixir= std::vector<char>{};
+    NVRTC_SAFE_CALL(nvrtcGetOptiXIRSize(program, &size));
+    optixir.resize(size);
+    NVRTC_SAFE_CALL(nvrtcGetOptiXIR(program, optixir.data()));
+
+
+    app->SetRenderer(std::make_shared<RayTracingInOneWeekend::RendererDiffuse>(app->GetOutputBuffer(), optixir));
     
     while (app->IsRunning()) 
     {

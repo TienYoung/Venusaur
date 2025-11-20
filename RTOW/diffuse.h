@@ -9,15 +9,15 @@ struct DiffuseParams
     float3 pixel00_loc;
     float3 pixel_delta_u;
     float3 pixel_delta_v;
-    uint32_t samples_per_pixel;
-    uint32_t subframe_index;
+    unsigned int samples_per_pixel;
+    unsigned int subframe_index;
     OptixTraversableHandle handle;
 };
 
 struct DiffusePayload
 {
-    uint32_t seed;
-    uint32_t depth;
+    unsigned int seed;
+    unsigned int depth;
     float3 origin;
     float3 direction;
     float3 diffuse;
