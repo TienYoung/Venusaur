@@ -24,16 +24,48 @@ int main(int argc, char* argv[])
     auto source = std::string{std::istreambuf_iterator<char>{file}, std::istreambuf_iterator<char>{}};
     file.close();
 
+    const char params_h[] = 
+    {
+        #include "params.h.h"
+    };
+
+    const char random_h[] = 
+    {
+        #include "random.h.h"
+    };
+    
+    const char shading_h[] = 
+    {
+        #include "shading.h.h"
+    };
+
+    const char diffuse_h[] = 
+    {
+        #include "diffuse.h.h"
+    };
+
+    const char* const headers[] =
+    {
+        params_h, random_h, shading_h, diffuse_h
+    };
+
+    const char* const includes[] =
+    {
+        "params.h",
+        "random.h",
+        "shading.h",
+        "diffuse.h",
+    };
+
     auto program = nvrtcProgram{};
-    NVRTC_SAFE_CALL(nvrtcCreateProgram(&program, source.c_str(), "diffuse.cu", 0, NULL, NULL));
+    NVRTC_SAFE_CALL(nvrtcCreateProgram(&program, source.c_str(), "diffuse.cu", 4, headers, includes));
     const char* const options[] = {
         "-std=c++20",
         "-optix-ir",
         "-IC:\\ProgramData\\NVIDIA Corporation\\OptiX SDK 9.0.0\\include",
-        "-Icuda",
         "--use_fast_math",
     };
-    NVRTC_SAFE_CALL(nvrtcCompileProgram(program, 5, options));
+    NVRTC_SAFE_CALL(nvrtcCompileProgram(program, 4, options));
     auto size = size_t{};
     auto log = std::string{};
     NVRTC_SAFE_CALL(nvrtcGetProgramLogSize(program, &size));
@@ -53,7 +85,7 @@ int main(int argc, char* argv[])
         auto optix7cache = std::filesystem::path("C:\\Users\\const\\AppData\\Local\\NVIDIA\\OptixCache\\optix7cache.db");
         auto cacheTime = std::filesystem::last_write_time(optix7cache);
         auto sourceTime = std::filesystem::last_write_time(filePath);
-        if(sourceTime > cacheTime)
+        if(false)
         {
             auto filePath = std::filesystem::path{"cuda/diffuse.cu"};
             auto file = std::ifstream{filePath};
