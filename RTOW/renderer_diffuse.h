@@ -17,7 +17,7 @@
 #include <output_buffer.h>
 #include <renderer_base.h>
 
-#include "diffuse.h"
+#include "cuda/diffuse.h"
 
 namespace RayTracingInOneWeekend
 {

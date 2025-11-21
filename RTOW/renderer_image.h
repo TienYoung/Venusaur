@@ -13,7 +13,7 @@
 
 #include <renderer_base.h>
 
-#include "image.h"
+#include "cuda/image.h"
 
 namespace RayTracingInOneWeekend
 {

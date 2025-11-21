@@ -63,11 +63,12 @@ target("core")
     end
 
 target("rtow")
+    set_rundir("$(projectdir)/rtow")
     set_kind("binary")
     add_files("rtow/*.cpp")
     add_deps("core")
 
     after_build(function (target)
-        os.cp("rtow/*.cu", "$(builddir)/$(plat)/$(arch)/$(mode)")
+        os.cp("rtow/cuda", "$(builddir)/$(plat)/$(arch)/$(mode)")
     end)
 

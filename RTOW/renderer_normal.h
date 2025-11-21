@@ -16,7 +16,7 @@
 #include <output_buffer.h>
 #include <renderer_base.h>
 
-#include "sphere.h"
+#include "cuda/sphere.h"
 
 namespace RayTracingInOneWeekend
 {

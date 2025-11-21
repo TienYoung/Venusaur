@@ -15,7 +15,7 @@
 
 #include <renderer_base.h>
 
-#include "antialiasing.h"
+#include "cuda/antialiasing.h"
 #include "cuda_runtime_api.h"
 
 namespace RayTracingInOneWeekend

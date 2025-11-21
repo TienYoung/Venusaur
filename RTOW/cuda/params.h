@@ -111,3 +111,36 @@ __forceinline__ __device__  float3 ray_color(const float3& ray_direction) {
     auto a = 0.5f * (unit_direction.y + 1.0f);
     return (1.0f - a) * float3(1.0f, 1.0f, 1.0f) + a * float3(0.5f, 0.7f, 1.0f);
 }
+
+struct Onb
+{
+    __forceinline__ __device__ Onb(const float3& normal)
+    {
+        m_normal = normal;
+
+        if( fabs(m_normal.x) > fabs(m_normal.z) )
+        {
+        m_binormal.x = -m_normal.y;
+        m_binormal.y =  m_normal.x;
+        m_binormal.z =  0;
+        }
+        else
+        {
+        m_binormal.x =  0;
+        m_binormal.y = -m_normal.z;
+        m_binormal.z =  m_normal.y;
+        }
+
+        m_binormal = unit_vector(m_binormal);
+        m_tangent = cross( m_binormal, m_normal );
+    }
+
+    __forceinline__ __device__ void inverse_transform(float3& p) const
+    {
+        p = p.x*m_tangent + p.y*m_binormal + p.z*m_normal;
+    }
+
+    float3 m_tangent;
+    float3 m_binormal;
+    float3 m_normal;
+};

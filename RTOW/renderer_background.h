@@ -15,7 +15,7 @@
 
 #include <renderer_base.h>
 
-#include "background.h"
+#include "cuda/background.h"
 
 
 namespace RayTracingInOneWeekend

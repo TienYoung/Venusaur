@@ -1,7 +1,8 @@
 #include <optix.h>
 
-#include <random.h>
-#include <shading.h>
+#include "params.h"
+#include "random.h"
+#include "shading.h"
 
 #include "diffuse.h"
 
