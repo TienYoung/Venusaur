@@ -58,8 +58,9 @@ target("core")
         print("Warning: CUDA_PATH environment variable is not set. CUDA include directory will not be added.")
     end
     -- optix
-    if is_plat("windows") then
-        add_includedirs("C:\\ProgramData\\NVIDIA Corporation\\OptiX SDK 9.0.0\\include", {public = true})
+    local optix_install_dir = os.getenv("OPTIX_INSTALL_DIR")
+    if optix_install_dir then
+        add_includedirs(optix_install_dir .. "/include", {public = true})
     end
 
 target("rtow")
@@ -67,8 +68,6 @@ target("rtow")
     set_kind("binary")
     add_files("rtow/*.cpp")
     add_deps("core")
-    add_rules("utils.bin2c", {extensions = {".h"}})
-    add_files("rtow/cuda/*.h")
 
     after_build(function (target)
         os.cp("rtow/cuda", "$(builddir)/$(plat)/$(arch)/$(mode)")

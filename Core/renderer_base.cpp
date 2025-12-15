@@ -1,3 +1,4 @@
+#include <cstring>
 #include <string>
 #include <format>
 
@@ -11,6 +12,43 @@
 
 void ContextLogCallback(unsigned int level, const char* tag, const char* message, void* /*cbdata */)
 {
+	// static std::string content = "";
+	
+	// if(strlen(message) == 0) 
+	// 	return;
+
+	// if(content.empty()) 
+	// 	content = std::format("[OptiX] [{}]\n", tag);
+	// content.append(message);
+
+	// auto cr = strchr(message, '\n');
+	// if(cr == nullptr)
+	// {
+	// 	content.append("\n");
+	// }
+	// else 
+	// {
+	// 	switch (level) 
+	// 	{
+	// 		case 1:  // fatal
+	// 			spdlog::critical(content);
+	// 			break;
+	// 		case 2:  // error
+	// 			spdlog::error(content);
+	// 			break;
+	// 		case 3:  // warning
+	// 			spdlog::warn(content);
+	// 			break;
+	// 		case 4:  // print / info
+	// 			spdlog::info(content);
+	// 			break;
+	// 		default: // others
+	// 			spdlog::debug(content);
+	// 			break;
+	// 	}
+	// 	content.clear();
+	// }
+
 	std::string log_msg = std::format("[OptiX][{}] {}", tag, message);
 	switch (level) 
 	{
