@@ -10,7 +10,7 @@
 
 #include <application.h>
 
-#include "renderer_diffuse.h"
+#include "renderer_metal.h"
 
 int main(int argc, char* argv[]) 
 {
@@ -23,13 +23,13 @@ int main(int argc, char* argv[])
 
     auto app = std::make_unique<Venusaur::Application>(image_width, image_height);
 
-    auto filePath = std::filesystem::path{"cuda/diffuse.cu"};
+    auto filePath = std::filesystem::path{"cuda/metal.cu"};
     auto file = std::ifstream{filePath};
     auto source = std::string{std::istreambuf_iterator<char>{file}, std::istreambuf_iterator<char>{}};
     file.close();
 
     auto program = nvrtcProgram{};
-    NVRTC_SAFE_CALL(nvrtcCreateProgram(&program, source.c_str(), "diffuse.cu", 0, nullptr, nullptr));
+    NVRTC_SAFE_CALL(nvrtcCreateProgram(&program, source.c_str(), "metal.cu", 0, nullptr, nullptr));
 #ifdef WIN32
     char* cuda_path = nullptr;
     size_t len;
@@ -68,7 +68,7 @@ int main(int argc, char* argv[])
     NVRTC_SAFE_CALL(nvrtcGetOptiXIR(program, optixir.data()));
     NVRTC_SAFE_CALL(nvrtcDestroyProgram(&program));
 
-    app->SetRenderer(std::make_shared<RayTracingInOneWeekend::RendererDiffuse>(app->GetOutputBuffer(), optixir));
+    app->SetRenderer(std::make_shared<RayTracingInOneWeekend::RendererMetal>(app->GetOutputBuffer(), optixir));
     
     while (app->IsRunning()) 
     {

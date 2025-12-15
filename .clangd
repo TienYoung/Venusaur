@@ -4,4 +4,4 @@ CompileFlags:
     - --cuda-path=C:\\Program Files\\NVIDIA GPU Computing Toolkit\\CUDA\\v13.0
     - --cuda-gpu-arch=sm_75
     - -IC:\\Program Files\\NVIDIA GPU Computing Toolkit\\CUDA\\v13.0\\include
-    - -IC:\\ProgramData\\NVIDIA Corporation\\OptiX SDK 9.0.0\\include
+    - -IC:\\ProgramData\\NVIDIA Corporation\\OptiX SDK 9.1.0\\include
