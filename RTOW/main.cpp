@@ -1,8 +1,3 @@
-#include <array>
-#include <cstddef>
-#include <cstdlib>
-#include <stdlib.h>
-#include <vector>
 #include <fstream>
 #include <filesystem>
 
@@ -45,17 +40,19 @@ int main(int argc, char* argv[])
     auto optix_install_dir = std::getenv("OPTIX_INSTALL_DIR");
 #endif
     auto cudaInclude = std::format("-I{}/include", cuda_path);
+    auto ccclInclude = std::format("-I{}/include/cccl", cuda_path);
     auto optixInclude = std::format("-I{}/include", optix_install_dir);
 
     std::array options = {
         "-std=c++20",
         "-optix-ir",
         cudaInclude.c_str(),
+        ccclInclude.c_str(),
         optixInclude.c_str(),
         "-Icuda",
         "--use_fast_math",
     };
-    NVRTC_SAFE_CALL(nvrtcCompileProgram(program, options.size(), options.data()));
+    (nvrtcCompileProgram(program, options.size(), options.data()));
     auto size = size_t{};
     auto log = std::string{};
     NVRTC_SAFE_CALL(nvrtcGetProgramLogSize(program, &size));

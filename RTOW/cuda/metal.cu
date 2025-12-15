@@ -1,3 +1,4 @@
+#include <cuda/std/cstdint>
 #include <cuda_runtime_api.h>
 #include <optix.h>
 #include <vector_functions.h>
@@ -8,42 +9,26 @@
 
 #include "metal.h"
 
-static __forceinline__ __device__ MetalPayload GetMetalPayload()
+static __forceinline__ __device__ void* unpackPointer(uint32_t i0, unsigned int i1)
 {
-    return MetalPayload {
-        .seed = optixGetPayload_0(),
-        .depth = optixGetPayload_1(),
-        .origin = {
-            .x = __uint_as_float(optixGetPayload_2()),
-            .y = __uint_as_float(optixGetPayload_3()),
-            .z = __uint_as_float(optixGetPayload_4()),
-        },
-        .direction = {
-            .x = __uint_as_float(optixGetPayload_5()),
-            .y = __uint_as_float(optixGetPayload_6()),
-            .z = __uint_as_float(optixGetPayload_7()),
-        },
-        .diffuse = {
-            .x = __uint_as_float(optixGetPayload_8()),
-            .y = __uint_as_float(optixGetPayload_9()),
-            .z = __uint_as_float(optixGetPayload_10()),
-        },
-    };
+    const uintptr_t uptr = static_cast<uintptr_t>(i0) << 32 | i1;
+    void*           ptr = reinterpret_cast<void*>(uptr); 
+    return ptr;
 }
 
-static __forceinline__ __device__ void SetMetalPayload(MetalPayload payload)
+static __forceinline__ __device__ void packPointer(void* ptr, unsigned int& i0, unsigned int& i1)
 {
-    optixSetPayload_0(payload.seed);
-    optixSetPayload_1(payload.depth);
-    optixSetPayload_2(__float_as_uint(payload.origin.x));
-    optixSetPayload_3(__float_as_uint(payload.origin.y));
-    optixSetPayload_4(__float_as_uint(payload.origin.z));
-    optixSetPayload_5(__float_as_uint(payload.direction.x));
-    optixSetPayload_6(__float_as_uint(payload.direction.y));
-    optixSetPayload_7(__float_as_uint(payload.direction.z));
-    optixSetPayload_8(__float_as_uint(payload.diffuse.x));
-    optixSetPayload_9(__float_as_uint(payload.diffuse.y));
-    optixSetPayload_10(__float_as_uint(payload.diffuse.z));
+    const unsigned long long uptr = reinterpret_cast<unsigned long long>(ptr);
+    i0 = uptr >> 32;
+    i1 = uptr & 0x00000000ffffffff;
+}
+
+template <typename T>
+static __forceinline__ __device__ T* GetPayload()
+{
+    const uint32_t u0 = optixGetPayload_0();
+    const uint32_t u1 = optixGetPayload_1();
+    return reinterpret_cast<T*>(unpackPointer(u0, u1));
 }
 
 extern "C" __device__ float3 __direct_callable__lambertian__(float3 ray_direction, float3 normal)
@@ -91,18 +76,8 @@ extern "C" __global__ void __raygen__()
 
         do
         {
-            unsigned int u0, u1, u2, u3, u4, u5, u6, u7, u8, u9, u10;
-            u0 = payload.seed;
-            u1 = payload.depth;
-            u2 = __float_as_uint(payload.origin.x);
-            u3 = __float_as_uint(payload.origin.y);
-            u4 = __float_as_uint(payload.origin.z);
-            u5 = __float_as_uint(payload.direction.x);
-            u6 = __float_as_uint(payload.direction.y);
-            u7 = __float_as_uint(payload.direction.z);
-            u8 = __float_as_uint(payload.diffuse.x);
-            u9 = __float_as_uint(payload.diffuse.y);
-            u10 = __float_as_uint(payload.diffuse.z);
+            unsigned int u0, u1;
+            packPointer(&payload, u0, u1);
 
             optixTraverse(
                     params.handle,
@@ -116,27 +91,9 @@ extern "C" __global__ void __raygen__()
                     0,                   // SBT offset   -- See SBT discussion
                     0,                   // SBT stride   -- See SBT discussion
                     0,                   // missSBTIndex -- See SBT discussion
-                    u0, u1, u2, u3, u4, u5, u6, u7, u8, u9, u10);
+                    u0, u1);
 
-            optixInvoke(u0, u1, u2, u3, u4, u5, u6, u7, u8, u9, u10);
-
-            payload.seed = u0;
-            payload.depth = u1;
-            payload.origin = {
-                .x = __uint_as_float(u2),
-                .y = __uint_as_float(u3),
-                .z = __uint_as_float(u4),
-            };
-            payload.direction = {
-                .x = __uint_as_float(u5),
-                .y = __uint_as_float(u6),
-                .z = __uint_as_float(u7),
-            };
-            payload.diffuse = {
-                .x = __uint_as_float(u8),
-                .y = __uint_as_float(u9),
-                .z = __uint_as_float(u10),
-            };
+            optixInvoke(u0, u1);
 
             ray_origin = payload.origin;
             ray_direction = payload.direction;
@@ -168,10 +125,10 @@ extern "C" __global__ void __closesthit__()
     float3 obj_normal   = ( obj_raypos - make_float3( q.x, q.y, q.z ) ) / q.w;
     float3 world_normal = unit_vector( optixTransformNormalFromObjectToWorldSpace( obj_normal ) );
 
-    MetalPayload payload = GetMetalPayload();
+    MetalPayload* payload = GetPayload<MetalPayload>();
 
-    const float z1 = rnd(payload.seed);
-    const float z2 = rnd(payload.seed);
+    const float z1 = rnd(payload->seed);
+    const float z2 = rnd(payload->seed);
 
     float3 w_in;
     cosine_sample_hemisphere(z1, z2, w_in);
@@ -180,24 +137,20 @@ extern "C" __global__ void __closesthit__()
     // const float3 ray_dir = optixGetWorldRayDirection();
     const float3 P = optixGetWorldRayOrigin() + optixGetRayTmax() * ray_dir;
 
-    payload.depth--;
-    payload.origin = P;
-    payload.direction = w_in;
-    payload.diffuse *= payload.depth > 0 ? 0.5f : 0.0f;
-
-    SetMetalPayload(payload);
+    payload->depth--;
+    payload->origin = P;
+    payload->direction = w_in;
+    payload->diffuse *= payload->depth > 0 ? 0.5f : 0.0f;
 }
 
 
 extern "C" __global__ void __miss__()
 {
-    MetalPayload payload = GetMetalPayload();
+    MetalPayload* payload = GetPayload<MetalPayload>();
 
     auto ray_direction = optixGetWorldRayDirection();
     float3 pixel_color = ray_color(ray_direction);
     
-    payload.depth = 0;
-    payload.diffuse *= pixel_color;
-
-    SetMetalPayload(payload);
+    payload->depth = 0;
+    payload->diffuse *= pixel_color;
 }
