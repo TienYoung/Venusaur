@@ -200,7 +200,7 @@ namespace RayTracingInOneWeekend
 				OPTIX_CHECK_LOG(optixProgramGroupCreate(
 					m_context,
 					programGroupDesc.data(),
-					programGroupDesc.size(),   // num program groups
+					programGroupDesc.size(),
 					&programGroupOptions,
 					log,
 					&log_length,
