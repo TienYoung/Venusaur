@@ -29,16 +29,6 @@ static __forceinline__ __device__ T* getPayload()
     return reinterpret_cast<T*>(unpackPointer(u0, u1));
 }
 
-extern "C" __device__ float3 __direct_callable__lambertian__(float3 ray_direction, float3 normal)
-{
-    return normal;
-}
-
-extern "C" __device__ float3 __direct_callable__metal__(float3 ray_direction, float3 normal)
-{
-    return normal;
-}
-
 extern "C" 
 {
     __constant__ MetalParams params;
@@ -85,9 +75,9 @@ extern "C" __global__ void __raygen__()
                 10000000.0f,             // Max intersection distance
                 0.0f,                // rayTime -- used for motion blur
                 OptixVisibilityMask(255), // Specify always visible
-                OPTIX_RAY_FLAG_NONE,
-                0,                   // SBT offset   -- See SBT discussion
-                1,                   // SBT stride   -- See SBT discussion
+                OPTIX_RAY_FLAG_DISABLE_ANYHIT,
+                0,
+                1,
                 0,                   // missSBTIndex -- See SBT discussion
                 u0, u1);
 
@@ -152,6 +142,36 @@ extern "C" __global__ void __closesthit__lambertian()
     payload->diffuse *= attenuation;
 }
 
+extern "C" __global__ void __closesthit__metal()
+{
+    const float3 ray_origin    = optixGetWorldRayOrigin();
+    const float3 ray_direction = optixGetWorldRayDirection();
+    const float  ray_t         = optixGetRayTmax();
+    const float3 hit_point     = ray_origin + ray_t * ray_direction;
+
+    auto albedo = *reinterpret_cast<float3*>(optixGetSbtDataPointer());
+    
+    MetalPayload* payload = getPayload<MetalPayload>();
+
+    if(optixGetPrimitiveType() != OPTIX_PRIMITIVE_TYPE_SPHERE)
+    {
+        payload->depth = 0;
+        payload->diffuse *= 0.0f;
+        return;
+    }
+
+    Sphere sphere;
+    optixGetSphereData(&sphere.data);
+    
+    const float3 world_normal = (hit_point - sphere.center) / sphere.radius;
+
+    float3 reflected = reflect(ray_direction, world_normal);
+
+    auto attenuation = --payload->depth > 0 ? albedo : float3{ .x = 0.0f, .y = 0.0f, .z = 0.0f };
+    payload->origin = hit_point;
+    payload->direction = reflected;
+    payload->diffuse *= attenuation;
+}
 
 extern "C" __global__ void __miss__()
 {
