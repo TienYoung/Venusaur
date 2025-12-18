@@ -87,7 +87,7 @@ extern "C" __global__ void __raygen__()
                 OptixVisibilityMask(255), // Specify always visible
                 OPTIX_RAY_FLAG_NONE,
                 0,                   // SBT offset   -- See SBT discussion
-                0,                   // SBT stride   -- See SBT discussion
+                1,                   // SBT stride   -- See SBT discussion
                 0,                   // missSBTIndex -- See SBT discussion
                 u0, u1);
 
@@ -116,13 +116,15 @@ union Sphere
     float4 data;
 };
 
-extern "C" __global__ void __closesthit__()
+extern "C" __global__ void __closesthit__lambertian()
 {
     const float3 ray_origin    = optixGetWorldRayOrigin();
     const float3 ray_direction = optixGetWorldRayDirection();
     const float  ray_t         = optixGetRayTmax();
     const float3 hit_point     = ray_origin + ray_t * ray_direction;
 
+    auto albedo = *reinterpret_cast<float3*>(optixGetSbtDataPointer());
+    
     MetalPayload* payload = getPayload<MetalPayload>();
 
     if(optixGetPrimitiveType() != OPTIX_PRIMITIVE_TYPE_SPHERE)
@@ -144,10 +146,10 @@ extern "C" __global__ void __closesthit__()
     Onb onb(world_normal);
     onb.inverse_transform(w_in);
 
-    payload->depth--;
+    auto attenuation = --payload->depth > 0 ? albedo : float3{ .x = 0.0f, .y = 0.0f, .z = 0.0f };
     payload->origin = hit_point;
     payload->direction = w_in;
-    payload->diffuse *= payload->depth > 0 ? 0.5f : 0.0f;
+    payload->diffuse *= attenuation;
 }
 
 

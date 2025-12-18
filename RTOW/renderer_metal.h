@@ -23,7 +23,20 @@ namespace RayTracingInOneWeekend
 {
 	class RendererMetal : public Venusaur::RendererBase
     {
-        public:
+	private:
+		union ProgramGroup
+		{
+			struct 
+			{
+				OptixProgramGroup raygen;
+				OptixProgramGroup miss;
+				OptixProgramGroup hitgroup_lambertian;
+				// OptixProgramGroup hitgrou_metal;
+			};
+			std::array<OptixProgramGroup, 3> array;
+		};
+		
+	public:
 		RendererMetal(std::shared_ptr<Venusaur::OutputBuffer> outputBuffer, const std::vector<char>& optixIR) :
 			Venusaur::RendererBase(outputBuffer, 1)
 		{
@@ -40,13 +53,18 @@ namespace RayTracingInOneWeekend
 				};
 
 				std::array sphereCenter = {
-					make_float3( 0.f, 0.f, -1.f ),
 					make_float3( 0.f, -100.5f, -1.f ),
+					make_float3( 0.f, 0.f, -1.f ),
 				};
 				
 				std::array sphereRadius = {
-					0.5f,
 					100.0f,
+					0.5f,
+				};
+
+				std::array indices = {
+					0,
+					1,
 				};
 
 				CUdeviceptr d_centerBuffer;
@@ -57,7 +75,11 @@ namespace RayTracingInOneWeekend
 				CUDA_CHECK(cudaMalloc(reinterpret_cast<void**>(&d_radiusBuffer), sizeof(float) * sphereRadius.size()));
 				CUDA_CHECK(cudaMemcpy(reinterpret_cast<void*>(d_radiusBuffer), sphereRadius.data(), sizeof(float) * sphereRadius.size(), cudaMemcpyHostToDevice));
 
-				unsigned int sphereInputFlags[] = { OPTIX_GEOMETRY_FLAG_NONE };
+				CUdeviceptr d_sbtIndexBuffer;
+				CUDA_CHECK(cudaMalloc(reinterpret_cast<void**>(&d_sbtIndexBuffer), sizeof(indices)));
+				CUDA_CHECK(cudaMemcpy(reinterpret_cast<void*>(d_sbtIndexBuffer), indices.data(), sizeof(indices), cudaMemcpyHostToDevice));
+
+				unsigned int sphereInputFlags[] = { OPTIX_GEOMETRY_FLAG_DISABLE_ANYHIT, OPTIX_GEOMETRY_FLAG_DISABLE_ANYHIT };
 				OptixBuildInput sphereInput = {
 					.type = OPTIX_BUILD_INPUT_TYPE_SPHERES,
 					.sphereArray = {
@@ -68,9 +90,9 @@ namespace RayTracingInOneWeekend
 						.radiusStrideInBytes = sizeof(float),
 						.singleRadius = false,
 						.flags = sphereInputFlags,
-						.numSbtRecords = 1,
-						.sbtIndexOffsetBuffer = NULL,
-						.sbtIndexOffsetSizeInBytes = 0,
+						.numSbtRecords = indices.size(),
+						.sbtIndexOffsetBuffer = d_sbtIndexBuffer,
+						.sbtIndexOffsetSizeInBytes = sizeof(int),
 						.sbtIndexOffsetStrideInBytes = 0,
 						.primitiveIndexOffset = 0,
 					}
@@ -180,7 +202,7 @@ namespace RayTracingInOneWeekend
 					.flags = OPTIX_PROGRAM_GROUP_FLAGS_NONE,
 					.hitgroup = {
 						.moduleCH = module,
-						.entryFunctionNameCH = "__closesthit__",
+						.entryFunctionNameCH = "__closesthit__lambertian",
 						.moduleAH = nullptr,
 						.entryFunctionNameAH = nullptr,
 						.moduleIS = sphereModuleIS,
@@ -189,8 +211,6 @@ namespace RayTracingInOneWeekend
 				}
 			};
 			
-			std::array<OptixProgramGroup, programGroupDesc.size()> programGroups = {};
-
 			OptixProgramGroupOptions programGroupOptions = {
 				.payloadType = nullptr,
 			};
@@ -204,7 +224,7 @@ namespace RayTracingInOneWeekend
 					&programGroupOptions,
 					log,
 					&log_length,
-					programGroups.data()
+					m_programGroup.array.data()
 				));
 			}
 
@@ -219,8 +239,8 @@ namespace RayTracingInOneWeekend
 					m_context,
 					&pipelineCompileOptions,
 					&pipelineLinkOptions,
-					programGroups.data(),
-					programGroups.size(),
+					m_programGroup.array.data(),
+					m_programGroup.array.size(),
 					log,
 					&log_length,
 					&m_pipeline
@@ -229,7 +249,7 @@ namespace RayTracingInOneWeekend
 
 			{
 				OptixStackSizes stackSizes = {};
-				for (auto& progGroup : programGroups)
+				for (auto& progGroup : m_programGroup.array)
 				{
 					OPTIX_CHECK(optixUtilAccumulateStackSizes(progGroup, &stackSizes, m_pipeline));
 				}
@@ -259,38 +279,42 @@ namespace RayTracingInOneWeekend
 			CUdeviceptr  d_raygenRecord = NULL;
 			CUDA_CHECK(cudaMalloc(reinterpret_cast<void**>(&d_raygenRecord), sizeof(RayGenSbtRecord)));
 			RayGenSbtRecord raygenRecord = {};
-			OPTIX_CHECK(optixSbtRecordPackHeader(programGroups[0], &raygenRecord));
+			OPTIX_CHECK(optixSbtRecordPackHeader(m_programGroup.raygen, &raygenRecord));
 			CUDA_CHECK(cudaMemcpy(
 				reinterpret_cast<void*>(d_raygenRecord),
 				&raygenRecord,
 				sizeof(RayGenSbtRecord),
 				cudaMemcpyHostToDevice
 			));
-			OPTIX_CHECK(optixProgramGroupDestroy(programGroups[0]));
+			OPTIX_CHECK(optixProgramGroupDestroy(m_programGroup.raygen));
 			
 			CUdeviceptr d_missRecordBase = NULL;
 			CUDA_CHECK(cudaMalloc(reinterpret_cast<void**>(&d_missRecordBase), sizeof(MissSbtRecord)));
 			MissSbtRecord missRecord = {};
-			OPTIX_CHECK(optixSbtRecordPackHeader(programGroups[1], &missRecord));
+			OPTIX_CHECK(optixSbtRecordPackHeader(m_programGroup.miss, &missRecord));
 			CUDA_CHECK(cudaMemcpy(
 				reinterpret_cast<void*>(d_missRecordBase),
 				&missRecord,
 				sizeof(MissSbtRecord),
 				cudaMemcpyHostToDevice
 			));
-			OPTIX_CHECK(optixProgramGroupDestroy(programGroups[1]));
+			OPTIX_CHECK(optixProgramGroupDestroy(m_programGroup.miss));
+
+			std::array<HitGroupLambertianSbtRecord, 2> hitGroupRecords;
+			OPTIX_CHECK(optixSbtRecordPackHeader(m_programGroup.hitgroup_lambertian, hitGroupRecords[0].header));
+			hitGroupRecords[0].data = float3{ .x = 0.8f, .y = 0.8f, .z = 0.0f };
+			OPTIX_CHECK(optixSbtRecordPackHeader(m_programGroup.hitgroup_lambertian, hitGroupRecords[1].header));
+			hitGroupRecords[1].data = float3{ .x = 0.1f, .y = 0.2f, .z = 0.5f };
 
 			CUdeviceptr d_hitGroupRecordBase = NULL;
-			CUDA_CHECK(cudaMalloc(reinterpret_cast<void**>(&d_hitGroupRecordBase), sizeof(HitGroupSbtRecord)));
-			HitGroupSbtRecord hitGroupRecord = {};
-			OPTIX_CHECK(optixSbtRecordPackHeader(programGroups[2], &hitGroupRecord));
+			CUDA_CHECK(cudaMalloc(reinterpret_cast<void**>(&d_hitGroupRecordBase), sizeof(hitGroupRecords)));
 			CUDA_CHECK(cudaMemcpy(
 				reinterpret_cast<void*>(d_hitGroupRecordBase),
-				&hitGroupRecord,
-				sizeof(HitGroupSbtRecord),
+				hitGroupRecords.data(),
+				sizeof(hitGroupRecords),
 				cudaMemcpyHostToDevice
 			));
-			OPTIX_CHECK(optixProgramGroupDestroy(programGroups[2]));
+			OPTIX_CHECK(optixProgramGroupDestroy(m_programGroup.hitgroup_lambertian));
 			
 			OPTIX_CHECK(optixModuleDestroy(module));
 
@@ -304,8 +328,8 @@ namespace RayTracingInOneWeekend
 				.missRecordStrideInBytes = sizeof(MissSbtRecord),
 				.missRecordCount = 1,
 				.hitgroupRecordBase = d_hitGroupRecordBase,
-				.hitgroupRecordStrideInBytes = sizeof(HitGroupSbtRecord),
-				.hitgroupRecordCount = 1,
+				.hitgroupRecordStrideInBytes = sizeof(HitGroupLambertianSbtRecord),
+				.hitgroupRecordCount = hitGroupRecords.size(),
 				.callablesRecordBase = NULL,
 				.callablesRecordStrideInBytes = 0,
 				.callablesRecordCount = 0,
@@ -325,7 +349,10 @@ namespace RayTracingInOneWeekend
 	private:
 		typedef SbtRecord<void>	RayGenSbtRecord;
 		typedef SbtRecord<void>	MissSbtRecord;
-		typedef SbtRecord<void> HitGroupSbtRecord;
+		typedef SbtRecord<float3> HitGroupLambertianSbtRecord;
+		// typedef SbtRecord<float3> HitGroupMetalSbtRecord;
+		
+		ProgramGroup m_programGroup;
 
 		OptixTraversableHandle m_gasHandle = 0;
 		CUdeviceptr d_gasBuffer = NULL;
