@@ -1,10 +1,24 @@
 #pragma once
 
+__forceinline__ __device__ float linear_to_gamma(float linear_component)
+{
+    if (linear_component > 0)
+        return sqrt(linear_component);
+
+    return 0;
+}
+
 __forceinline__ __device__ void write_color(uchar4& out, const float3& pixel_color)
 {
     auto r = pixel_color.x;
     auto g = pixel_color.y;
     auto b = pixel_color.z;
+
+    // Apply a linear to gamma transform for gamma 2
+    r = linear_to_gamma(r);
+    g = linear_to_gamma(g);
+    b = linear_to_gamma(b);
+
     // Translate the [0,1] component values to the byte range [0,255].
     int rbyte = int(255.999f * r);
     int gbyte = int(255.999f * g);

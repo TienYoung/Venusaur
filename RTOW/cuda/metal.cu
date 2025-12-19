@@ -113,7 +113,7 @@ extern "C" __global__ void __closesthit__lambertian()
     const float  ray_t         = optixGetRayTmax();
     const float3 hit_point     = ray_origin + ray_t * ray_direction;
 
-    auto albedo = *reinterpret_cast<float3*>(optixGetSbtDataPointer());
+    auto lambertian = *reinterpret_cast<Material::Lambertian*>(optixGetSbtDataPointer());
     
     MetalPayload* payload = getPayload<MetalPayload>();
 
@@ -136,7 +136,7 @@ extern "C" __global__ void __closesthit__lambertian()
     Onb onb(world_normal);
     onb.inverse_transform(w_in);
 
-    auto attenuation = --payload->depth > 0 ? albedo : float3{ .x = 0.0f, .y = 0.0f, .z = 0.0f };
+    auto attenuation = --payload->depth > 0 ? lambertian.albedo : float3{ .x = 0.0f, .y = 0.0f, .z = 0.0f };
     payload->origin = hit_point;
     payload->direction = w_in;
     payload->diffuse *= attenuation;
@@ -149,7 +149,7 @@ extern "C" __global__ void __closesthit__metal()
     const float  ray_t         = optixGetRayTmax();
     const float3 hit_point     = ray_origin + ray_t * ray_direction;
 
-    auto albedo = *reinterpret_cast<float3*>(optixGetSbtDataPointer());
+    auto metal = *reinterpret_cast<Material::Metal*>(optixGetSbtDataPointer());
     
     MetalPayload* payload = getPayload<MetalPayload>();
 
@@ -165,9 +165,17 @@ extern "C" __global__ void __closesthit__metal()
     
     const float3 world_normal = (hit_point - sphere.center) / sphere.radius;
 
-    float3 reflected = reflect(ray_direction, world_normal);
+    const float z1 = rnd(payload->seed);
+    const float z2 = rnd(payload->seed);
+    float3 w_in;
+    cosine_sample_hemisphere(z1, z2, w_in);
+    Onb onb(world_normal);
+    onb.inverse_transform(w_in);
 
-    auto attenuation = --payload->depth > 0 ? albedo : float3{ .x = 0.0f, .y = 0.0f, .z = 0.0f };
+    float3 reflected = reflect(ray_direction, world_normal);
+    reflected = unit_vector(reflected) + (metal.fuzz * w_in);
+
+    auto attenuation = --payload->depth > 0 ? metal.albedo : float3{ .x = 0.0f, .y = 0.0f, .z = 0.0f };
     payload->origin = hit_point;
     payload->direction = reflected;
     payload->diffuse *= attenuation;

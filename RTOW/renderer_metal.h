@@ -35,7 +35,7 @@ namespace RayTracingInOneWeekend
 			};
 			std::array<OptixProgramGroup, 4> array;
 		};
-		
+
 	public:
 		RendererMetal(std::shared_ptr<Venusaur::OutputBuffer> outputBuffer, const std::vector<char>& optixIR) :
 			Venusaur::RendererBase(outputBuffer, 1)
@@ -139,7 +139,7 @@ namespace RayTracingInOneWeekend
 
 			OptixModuleCompileOptions moduleCompileOptions = {
 				.maxRegisterCount = OPTIX_COMPILE_DEFAULT_MAX_REGISTER_COUNT,
-#ifdef OPTIX_DEBUG_DEVICE_CODE
+#ifdef _DEBUG
 				.optLevel 		  = OPTIX_COMPILE_OPTIMIZATION_LEVEL_0,
 				.debugLevel	      = OPTIX_COMPILE_DEBUG_LEVEL_FULL,
 #endif
@@ -324,10 +324,36 @@ namespace RayTracingInOneWeekend
 			OPTIX_CHECK(optixProgramGroupDestroy(m_programGroup.miss));
 
 			std::array hitGroupRecords = {
-				HitGroupSbtRecord{.data = float3{.x = 0.8f, .y = 0.8f, .z = 0.0f}},
-				HitGroupSbtRecord{.data = float3{.x = 0.1f, .y = 0.2f, .z = 0.5f}},
-				HitGroupSbtRecord{.data = float3{.x = 0.8f, .y = 0.8f, .z = 0.8f}},
-				HitGroupSbtRecord{.data = float3{.x = 0.8f, .y = 0.6f, .z = 0.2f}},
+				HitGroupSbtRecord{
+					.data = {
+						.lambertian = {
+							.albedo = float3{.x = 0.8f, .y = 0.8f, .z = 0.0f}
+						},
+					},
+				},
+				HitGroupSbtRecord{
+					.data = {
+						.lambertian = {
+							.albedo = float3{.x = 0.1f, .y = 0.2f, .z = 0.5f}
+						},
+					},
+				},
+				HitGroupSbtRecord{
+					.data = {
+						.metal = {
+							.albedo = float3{.x = 0.8f, .y = 0.8f, .z = 0.8f},
+							.fuzz = 0.3,
+						},
+					},
+				},
+				HitGroupSbtRecord{
+					.data = {
+						.metal = {
+							.albedo = float3{.x = 0.8f, .y = 0.6f, .z = 0.2f},
+							.fuzz = 1.0f,
+						},
+					},
+				},
 			};
 
 			OPTIX_CHECK(optixSbtRecordPackHeader(m_programGroup.hitgroup_lambertian, hitGroupRecords[0].header));
@@ -378,7 +404,7 @@ namespace RayTracingInOneWeekend
 	private:
 		typedef SbtRecord<void>	RayGenSbtRecord;
 		typedef SbtRecord<void>	MissSbtRecord;
-		typedef SbtRecord<float3> HitGroupSbtRecord;
+		typedef SbtRecord<Material> HitGroupSbtRecord;
 		
 		ProgramGroup m_programGroup;
 

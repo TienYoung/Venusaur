@@ -20,3 +20,17 @@ struct MetalPayload
     float3 direction;
     float3 diffuse;
 };
+
+union Material
+{
+    struct Lambertian
+    {
+        float3 albedo;
+    } lambertian;
+
+    struct Metal
+    {
+        float3 albedo;
+        float fuzz;
+    } metal;
+};
