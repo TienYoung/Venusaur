@@ -46,6 +46,9 @@ int main(int argc, char* argv[])
     std::array options = {
         "-std=c++20",
         "-optix-ir",
+#ifdef _DEBUG
+        "-G",
+#endif
         cudaInclude.c_str(),
         ccclInclude.c_str(),
         optixInclude.c_str(),
