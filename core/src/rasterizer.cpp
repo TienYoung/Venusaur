@@ -31,8 +31,9 @@ GLuint createGLShader(std::string_view source, GLuint shader_type) {
 
 GLuint createGLProgram(std::string_view vert_src, std::string_view frag_src) {
     GLuint vert_shader = createGLShader(vert_src, GL_VERTEX_SHADER);
-    if (vert_shader == 0)
+    if (vert_shader == 0) {
         return 0;
+    }
 
     GLuint frag_shader = createGLShader(frag_src, GL_FRAGMENT_SHADER);
     if (frag_shader == 0) {
@@ -101,7 +102,65 @@ constexpr std::string_view kFragmentSource = R"(
         color = texture(tex, uv);
     }
 )";
-} // anonymous namespace
+
+constexpr std::string_view glSourceToString(GLenum source) noexcept {
+    switch (source) {
+    case GL_DEBUG_SOURCE_API:
+        return "API";
+    case GL_DEBUG_SOURCE_WINDOW_SYSTEM:
+        return "Window System";
+    case GL_DEBUG_SOURCE_SHADER_COMPILER:
+        return "Shader Compiler";
+    case GL_DEBUG_SOURCE_THIRD_PARTY:
+        return "Third Party";
+    case GL_DEBUG_SOURCE_APPLICATION:
+        return "Application";
+    case GL_DEBUG_SOURCE_OTHER:
+        return "Other";
+    default:
+        return "Unknown";
+    }
+}
+
+constexpr std::string_view glTypeToString(GLenum type) noexcept {
+    switch (type) {
+    case GL_DEBUG_TYPE_ERROR:
+        return "Error";
+    case GL_DEBUG_TYPE_DEPRECATED_BEHAVIOR:
+        return "Deprecated Behavior";
+    case GL_DEBUG_TYPE_UNDEFINED_BEHAVIOR:
+        return "Undefined Behavior";
+    case GL_DEBUG_TYPE_PORTABILITY:
+        return "Portability";
+    case GL_DEBUG_TYPE_PERFORMANCE:
+        return "Performance";
+    case GL_DEBUG_TYPE_MARKER:
+        return "Marker";
+    case GL_DEBUG_TYPE_PUSH_GROUP:
+        return "Push Group";
+    case GL_DEBUG_TYPE_POP_GROUP:
+        return "Pop Group";
+    case GL_DEBUG_TYPE_OTHER:
+        return "Other";
+    default:
+        return "Unknown";
+    }
+}
+
+constexpr spdlog::level::level_enum glSeverityToSpdlogLevel(GLenum severity) noexcept {
+    switch (severity) {
+    case GL_DEBUG_SEVERITY_HIGH:
+        return spdlog::level::critical;
+    case GL_DEBUG_SEVERITY_MEDIUM:
+        return spdlog::level::err;
+    case GL_DEBUG_SEVERITY_LOW:
+        return spdlog::level::warn;
+    case GL_DEBUG_SEVERITY_NOTIFICATION:
+        return spdlog::level::info;
+    default:
+        return spdlog::level::debug;
+    }
+}
 
 void APIENTRY messageCallback(GLenum source,
                               GLenum type,
@@ -111,86 +170,16 @@ void APIENTRY messageCallback(GLenum source,
                               GLchar const* message,
                               void const* user_param) {
     // ignore non-significant error/warning codes
-    if (id == 131154 || /*id == 131169 ||*/ id == 131185 /*|| id == 131218*/ || id == 131204)
+    if (id == 131154 || /*id == 131169 ||*/ id == 131185 /*|| id == 131218*/ || id == 131204) [[unlikely]] {
         return;
-
-    std::string sourceStr, typeStr, severityStr;
-
-    switch (source) {
-    case GL_DEBUG_SOURCE_API:
-        sourceStr = "API";
-        break;
-    case GL_DEBUG_SOURCE_WINDOW_SYSTEM:
-        sourceStr = "Window System";
-        break;
-    case GL_DEBUG_SOURCE_SHADER_COMPILER:
-        sourceStr = "Shader Compiler";
-        break;
-    case GL_DEBUG_SOURCE_THIRD_PARTY:
-        sourceStr = "Third Party";
-        break;
-    case GL_DEBUG_SOURCE_APPLICATION:
-        sourceStr = "Application";
-        break;
-    case GL_DEBUG_SOURCE_OTHER:
-        sourceStr = "Other";
-        break;
-    default:
-        sourceStr = "Unknown";
-        break;
     }
 
-    switch (type) {
-    case GL_DEBUG_TYPE_ERROR:
-        typeStr = "Error";
-        break;
-    case GL_DEBUG_TYPE_DEPRECATED_BEHAVIOR:
-        typeStr = "Deprecated Behavior";
-        break;
-    case GL_DEBUG_TYPE_UNDEFINED_BEHAVIOR:
-        typeStr = "Undefined Behavior";
-        break;
-    case GL_DEBUG_TYPE_PORTABILITY:
-        typeStr = "Portability";
-        break;
-    case GL_DEBUG_TYPE_PERFORMANCE:
-        typeStr = "Performance";
-        break;
-    case GL_DEBUG_TYPE_MARKER:
-        typeStr = "Marker";
-        break;
-    case GL_DEBUG_TYPE_PUSH_GROUP:
-        typeStr = "Push Group";
-        break;
-    case GL_DEBUG_TYPE_POP_GROUP:
-        typeStr = "Pop Group";
-        break;
-    case GL_DEBUG_TYPE_OTHER:
-        typeStr = "Other";
-        break;
-    default:
-        typeStr = "Unknown";
-        break;
-    }
-
-    switch (severity) {
-    case GL_DEBUG_SEVERITY_HIGH:
-        spdlog::critical("[OpenGL][{}][{}][{}] {}", sourceStr, typeStr, id, message);
-        break;
-    case GL_DEBUG_SEVERITY_MEDIUM:
-        spdlog::error("[OpenGL][{}][{}][{}] {}", sourceStr, typeStr, id, message);
-        break;
-    case GL_DEBUG_SEVERITY_LOW:
-        spdlog::warn("[OpenGL][{}][{}][{}] {}", sourceStr, typeStr, id, message);
-        break;
-    case GL_DEBUG_SEVERITY_NOTIFICATION:
-        spdlog::info("[OpenGL][{}][{}][{}] {}", sourceStr, typeStr, id, message);
-        break;
-    default:
-        spdlog::debug("[OpenGL][{}][{}][{}] {}", sourceStr, typeStr, id, message);
-        break;
+    auto logLevel = glSeverityToSpdlogLevel(severity);
+    if (spdlog::should_log(logLevel)) {
+        spdlog::log(logLevel, "[OpenGL][{}][{}][{}] {}", glSourceToString(source), glTypeToString(type), id, message);
     }
 }
+} // anonymous namespace
 
 Rasterizer::Rasterizer() {
     if (gl3wInit()) {
@@ -230,7 +219,7 @@ Rasterizer::~Rasterizer() {
     glDeleteVertexArrays(1, &m_vao);
 }
 
-void Rasterizer::Render(GLuint width, GLuint height) {
+void Rasterizer::render(GLuint width, GLuint height) {
     glViewport(0, 0, width, height);
     glScissor(0, 0, width, height);
     constexpr GLfloat clearColor[] = {0.0f, 0.0f, 0.0f, 1.0f};

@@ -15,17 +15,13 @@ public:
     Application(int width, int height);
     ~Application();
 
-    inline std::shared_ptr<OutputBuffer> GetOutputBuffer() const { return m_outputBuffer; }
-    inline void SetRenderer(std::shared_ptr<RendererBase> renderer) { m_renderer = renderer; }
+    std::shared_ptr<OutputBuffer> GetOutputBuffer() const { return m_outputBuffer; }
+    void SetRenderer(std::shared_ptr<RendererBase> renderer) { m_renderer = renderer; }
 
     void Update();
 
-    inline bool IsRunning() const { return glfwWindowShouldClose(m_window) == GLFW_FALSE; }
-    inline void ResizeWindow(int width, int height) {
-        m_width = width;
-        m_height = height;
-    }
-    inline void ToggleUi() { m_showUi = !m_showUi; }
+    bool IsRunning() const { return glfwWindowShouldClose(m_window) == GLFW_FALSE; }
+    void ToggleUi() { m_showUi = !m_showUi; }
 
 private:
     GLFWwindow* m_window = nullptr;
@@ -34,6 +30,12 @@ private:
 
     bool m_showUi = false;
 
+    static void glfwResizeCallback(GLFWwindow* window, int width, int height);
+
+    void onResize(int width, int height) {
+        m_width = width;
+        m_height = height;
+    }
     std::shared_ptr<RendererBase> m_renderer = nullptr;
     std::shared_ptr<OutputBuffer> m_outputBuffer = nullptr;
     std::shared_ptr<Rasterizer> m_rasterizer = nullptr;

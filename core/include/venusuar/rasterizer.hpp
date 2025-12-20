@@ -7,7 +7,7 @@ class Rasterizer {
 public:
     Rasterizer();
     ~Rasterizer();
-    void Render(GLuint width, GLuint height);
+    void render(GLuint width, GLuint height);
 
 private:
     GLuint m_program = 0;

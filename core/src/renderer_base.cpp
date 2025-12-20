@@ -10,7 +10,8 @@
 #include <venusuar/exception.hpp>
 
 namespace venusaur {
-void ContextLogCallback(unsigned int level, const char* tag, const char* message, void* /*cbdata */) {
+namespace {
+void contextLogCallback(unsigned int level, const char* tag, const char* message, void* /*cbdata */) {
     // static std::string content = "";
 
     // if(strlen(message) == 0)
@@ -67,6 +68,7 @@ void ContextLogCallback(unsigned int level, const char* tag, const char* message
         break;
     }
 }
+} // namespace
 
 RendererBase::RendererBase(std::shared_ptr<OutputBuffer> outputBuffer, uint32_t maxTraceDepth)
     : m_outputBuffer(outputBuffer), m_maxTraceDepth(maxTraceDepth) {
@@ -76,7 +78,7 @@ RendererBase::RendererBase(std::shared_ptr<OutputBuffer> outputBuffer, uint32_t 
     CUcontext cuCtx = 0; // zero means take the current context
     OPTIX_CHECK(optixInit());
     OptixDeviceContextOptions options = {
-        .logCallbackFunction = &ContextLogCallback,
+        .logCallbackFunction = &contextLogCallback,
         .logCallbackData = nullptr,
         .logCallbackLevel = 4,
 #ifdef _DEBUG

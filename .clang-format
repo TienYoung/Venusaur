@@ -19,6 +19,10 @@ BreakBeforeBraces: Attach
 AllowShortFunctionsOnASingleLine: Inline
 AllowShortBlocksOnASingleLine: Empty
 
+InsertBraces: true
+AllowShortIfStatementsOnASingleLine: WithoutElse
+AllowShortLoopsOnASingleLine: false
+
 PointerAlignment: Left
 
 SortIncludes: CaseInsensitive

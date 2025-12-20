@@ -67,7 +67,7 @@ int main(int argc, char* argv[]) {
     NVRTC_SAFE_CALL(nvrtcGetOptiXIR(program, optixir.data()));
     NVRTC_SAFE_CALL(nvrtcDestroyProgram(&program));
 
-    app->SetRenderer(std::make_shared<RayTracingInOneWeekend::RendererMetal>(app->GetOutputBuffer(), optixir));
+    app->SetRenderer(std::make_shared<rtow::RendererMetal>(app->GetOutputBuffer(), optixir));
 
     while (app->IsRunning()) {
         app->Update();

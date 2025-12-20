@@ -19,7 +19,7 @@
 
 #include "cuda/metal.h"
 
-namespace RayTracingInOneWeekend {
+namespace rtow {
 class RendererMetal : public venusaur::RendererBase {
 private:
     union ProgramGroup {
@@ -36,14 +36,14 @@ public:
     RendererMetal(std::shared_ptr<venusaur::OutputBuffer> outputBuffer, const std::vector<char>& optixIR)
         : venusaur::RendererBase(outputBuffer, 1) {
         {
-            OptixAccelBuildOptions accelBuildOption = {.buildFlags = OPTIX_BUILD_FLAG_ALLOW_RANDOM_VERTEX_ACCESS,
-                                                       .operation = OPTIX_BUILD_OPERATION_BUILD,
-                                                       .motionOptions = {
-                                                           .numKeys = 0,
-                                                           .flags = 0,
-                                                           .timeBegin = 0.f,
-                                                           .timeEnd = 0.f,
-                                                       }};
+            auto accelBuildOption = OptixAccelBuildOptions{.buildFlags = OPTIX_BUILD_FLAG_ALLOW_RANDOM_VERTEX_ACCESS,
+                                                           .operation = OPTIX_BUILD_OPERATION_BUILD,
+                                                           .motionOptions = {
+                                                               .numKeys = 0,
+                                                               .flags = 0,
+                                                               .timeBegin = 0.f,
+                                                               .timeEnd = 0.f,
+                                                           }};
 
             std::array sphereCenter = {
                 make_float3(0.0f, -100.5f, -1.0f),
@@ -416,4 +416,4 @@ private:
         return paramsSize;
     }
 };
-} // namespace RayTracingInOneWeekend
+} // namespace rtow

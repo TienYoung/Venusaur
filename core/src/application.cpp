@@ -36,8 +36,11 @@ static void KeyCallback(GLFWwindow* window, int32_t key, int32_t /*scancode*/, i
     }
 }
 
-static void WindowResizeCallback(GLFWwindow* window, int width, int height) {
-    static_cast<Application*>(glfwGetWindowUserPointer(window))->ResizeWindow(width, height);
+void Application::glfwResizeCallback(GLFWwindow* window, int width, int height) {
+    auto* app = static_cast<Application*>(glfwGetWindowUserPointer(window));
+    if (app) {
+        app->onResize(width, height);
+    }
 }
 
 Application::Application(int width, int height) : m_width(width), m_height(height) {
@@ -62,7 +65,7 @@ Application::Application(int width, int height) : m_width(width), m_height(heigh
     glfwSetWindowUserPointer(m_window, this);
     glfwSetWindowSizeLimits(m_window, m_width, m_height, GLFW_DONT_CARE, GLFW_DONT_CARE);
     glfwSetWindowAspectRatio(m_window, m_width, m_height);
-    glfwSetWindowSizeCallback(m_window, WindowResizeCallback);
+    glfwSetWindowSizeCallback(m_window, glfwResizeCallback);
     glfwMakeContextCurrent(m_window);
 
     glfwSwapInterval(1);
