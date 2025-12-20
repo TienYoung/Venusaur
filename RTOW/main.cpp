@@ -1,14 +1,13 @@
-#include <fstream>
 #include <filesystem>
+#include <fstream>
 
 #include <nvrtc.h>
 
-#include <application.h>
+#include <venusuar/application.hpp>
 
 #include "renderer_metal.h"
 
-int main(int argc, char* argv[]) 
-{
+int main(int argc, char* argv[]) {
     auto aspect_ratio = 16.0 / 9.0;
     int image_width = 400;
 
@@ -16,7 +15,7 @@ int main(int argc, char* argv[])
     int image_height = int(image_width / aspect_ratio);
     image_height = (image_height < 1) ? 1 : image_height;
 
-    auto app = std::make_unique<Venusaur::Application>(image_width, image_height);
+    auto app = std::make_unique<venusaur::Application>(image_width, image_height);
 
     auto filePath = std::filesystem::path{"cuda/metal.cu"};
     auto file = std::ifstream{filePath};
@@ -62,17 +61,16 @@ int main(int argc, char* argv[])
     log.resize(size);
     NVRTC_SAFE_CALL(nvrtcGetProgramLog(program, log.data()));
     std::cerr << log.c_str() << std::endl;
-    auto optixir= std::vector<char>{};
+    auto optixir = std::vector<char>{};
     NVRTC_SAFE_CALL(nvrtcGetOptiXIRSize(program, &size));
     optixir.resize(size);
     NVRTC_SAFE_CALL(nvrtcGetOptiXIR(program, optixir.data()));
     NVRTC_SAFE_CALL(nvrtcDestroyProgram(&program));
 
     app->SetRenderer(std::make_shared<RayTracingInOneWeekend::RendererMetal>(app->GetOutputBuffer(), optixir));
-    
-    while (app->IsRunning()) 
-    {
-        app->Update();  
+
+    while (app->IsRunning()) {
+        app->Update();
     }
 
     return 0;

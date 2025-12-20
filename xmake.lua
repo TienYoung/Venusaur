@@ -1,5 +1,7 @@
 add_rules("mode.debug", "mode.release")
 
+set_project("Venusaur")
+
 set_languages("c++20")
 
 if is_plat("windows") then
@@ -31,7 +33,8 @@ add_requires("glfw")
 
 target("core")
     set_kind("static")
-    add_files("core/*.cpp")
+    add_files("core/src/*.cpp")
+    remove_files("core/src/camera.cpp")
     add_includedirs("core/include", {public = true})
     if is_plat("windows") then
         add_syslinks("gdi32")

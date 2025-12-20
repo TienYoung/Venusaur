@@ -1,4 +1,5 @@
-#include <cstring>
+#include <venusuar/renderer_base.hpp>
+
 #include <format>
 
 #include <optix_function_table_definition.h>
@@ -6,17 +7,16 @@
 
 #include <spdlog/spdlog.h>
 
-#include "exception.h"
-#include "renderer_base.h"
+#include <venusuar/exception.hpp>
 
-void ContextLogCallback(unsigned int level, const char* tag, const char* message, void* /*cbdata */)
-{
+namespace venusaur {
+void ContextLogCallback(unsigned int level, const char* tag, const char* message, void* /*cbdata */) {
     // static std::string content = "";
-    
-    // if(strlen(message) == 0) 
+
+    // if(strlen(message) == 0)
     // 	return;
 
-    // if(content.empty()) 
+    // if(content.empty())
     // 	content = std::format("[OptiX] [{}]\n", tag);
     // content.append(message);
 
@@ -25,9 +25,9 @@ void ContextLogCallback(unsigned int level, const char* tag, const char* message
     // {
     // 	content.append("\n");
     // }
-    // else 
+    // else
     // {
-    // 	switch (level) 
+    // 	switch (level)
     // 	{
     // 		case 1:  // fatal
     // 			spdlog::critical(content);
@@ -49,33 +49,31 @@ void ContextLogCallback(unsigned int level, const char* tag, const char* message
     // }
 
     const auto log_msg = std::format("[OptiX] [{}] {}", tag, message);
-    switch (level) 
-    {
-        case 1:  // fatal
-            spdlog::critical(log_msg);
-            break;
-        case 2:  // error
-            spdlog::error(log_msg);
-            break;
-        case 3:  // warning
-            spdlog::warn(log_msg);
-            break;
-        case 4:  // print / info
-            spdlog::info(log_msg);
-            break;
-        default: // others
-            spdlog::debug(log_msg);
-            break;
+    switch (level) {
+    case 1: // fatal
+        spdlog::critical(log_msg);
+        break;
+    case 2: // error
+        spdlog::error(log_msg);
+        break;
+    case 3: // warning
+        spdlog::warn(log_msg);
+        break;
+    case 4: // print / info
+        spdlog::info(log_msg);
+        break;
+    default: // others
+        spdlog::debug(log_msg);
+        break;
     }
 }
 
-Venusaur::RendererBase::RendererBase(std::shared_ptr<OutputBuffer> outputBuffer, uint32_t maxTraceDepth) :
-    m_outputBuffer(outputBuffer), m_maxTraceDepth(maxTraceDepth)
-{
+RendererBase::RendererBase(std::shared_ptr<OutputBuffer> outputBuffer, uint32_t maxTraceDepth)
+    : m_outputBuffer(outputBuffer), m_maxTraceDepth(maxTraceDepth) {
     CUDA_CHECK(cudaFree(0));
     CUDA_CHECK(cudaStreamCreate(&m_stream));
-    
-    CUcontext cuCtx = 0;  // zero means take the current context
+
+    CUcontext cuCtx = 0; // zero means take the current context
     OPTIX_CHECK(optixInit());
     OptixDeviceContextOptions options = {
         .logCallbackFunction = &ContextLogCallback,
@@ -89,29 +87,24 @@ Venusaur::RendererBase::RendererBase(std::shared_ptr<OutputBuffer> outputBuffer,
     OPTIX_CHECK(optixDeviceContextCreate(cuCtx, &options, &m_context));
 }
 
-Venusaur::RendererBase::~RendererBase()
-{
+RendererBase::~RendererBase() {
     OPTIX_CHECK(optixPipelineDestroy(m_pipeline));
     OPTIX_CHECK(optixDeviceContextDestroy(m_context));
 }
 
-void Venusaur::RendererBase::Draw()
-{
+void RendererBase::Draw() {
     size_t paramsSize = UpdateParams();
 
-    OPTIX_CHECK(optixLaunch(
-        m_pipeline,
-        m_stream,
-        d_params,
-        paramsSize,
-        &m_sbt,
-        m_outputBuffer->GetWidth(),
-        m_outputBuffer->GetHeight(),
-        1
-    ));
+    OPTIX_CHECK(optixLaunch(m_pipeline,
+                            m_stream,
+                            d_params,
+                            paramsSize,
+                            &m_sbt,
+                            m_outputBuffer->getWidth(),
+                            m_outputBuffer->getHeight(),
+                            1));
     CUDA_SYNC_CHECK();
-    
-    m_outputBuffer->Unmap(m_stream);
+
+    m_outputBuffer->unmap(m_stream);
 }
-
-
+} // namespace venusaur
