@@ -8,10 +8,10 @@
 #include <cuda_gl_interop.h>
 
 namespace venusaur {
-class OutputBuffer {
+class RenderTarget {
 public:
-    OutputBuffer(uint32_t width, uint32_t height);
-    ~OutputBuffer();
+    RenderTarget(uint32_t width, uint32_t height);
+    ~RenderTarget();
 
     uchar4* map(CUstream stream);
     void unmap(CUstream stream);

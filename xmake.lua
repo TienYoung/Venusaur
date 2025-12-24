@@ -55,6 +55,7 @@ target("core")
     local cuda_path = os.getenv("CUDA_PATH")
     if cuda_path then
         add_includedirs(cuda_path .. "/include", {public = true})
+        add_includedirs(cuda_path .. "/include/cccl", {public = true})
         add_linkdirs(cuda_path .. "/lib/x64")
         add_links("cudart_static", "nvrtc")
     else

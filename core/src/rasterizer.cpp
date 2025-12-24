@@ -1,4 +1,4 @@
-#include <venusuar/rasterizer.hpp>
+#include <venusaur/rasterizer.hpp>
 
 #include <spdlog/spdlog.h>
 #include <string_view>

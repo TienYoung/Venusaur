@@ -1,4 +1,4 @@
-#include <venusuar/application.hpp>
+#include <venusaur/application.hpp>
 
 #include <GL/gl3w.h>
 
@@ -7,10 +7,6 @@
 #include <imgui_impl_opengl3.h>
 
 #include <spdlog/spdlog.h>
-
-#include <venusuar/output_buffer.hpp>
-#include <venusuar/rasterizer.hpp>
-#include <venusuar/renderer_base.hpp>
 
 namespace venusaur {
 static void ErrorCallback(int error, const char* description) {
@@ -24,10 +20,11 @@ static void KeyCallback(GLFWwindow* window, int32_t key, int32_t /*scancode*/, i
             glfwSetWindowShouldClose(window, true);
             break;
         case GLFW_KEY_TAB:
-            if (glfwGetWindowAttrib(window, GLFW_DECORATED) == GLFW_TRUE)
+            if (glfwGetWindowAttrib(window, GLFW_DECORATED) == GLFW_TRUE) {
                 glfwSetWindowAttrib(window, GLFW_DECORATED, GLFW_FALSE);
-            else
+            } else {
                 glfwSetWindowAttrib(window, GLFW_DECORATED, GLFW_TRUE);
+            }
             break;
         case GLFW_KEY_F1:
             static_cast<Application*>(glfwGetWindowUserPointer(window))->ToggleUi();
@@ -70,7 +67,7 @@ Application::Application(int width, int height) : m_width(width), m_height(heigh
 
     glfwSwapInterval(1);
 
-    m_outputBuffer = std::make_shared<OutputBuffer>(m_width, m_height);
+    m_outputBuffer = std::make_shared<RenderTarget>(m_width, m_height);
     m_rasterizer = std::make_shared<Rasterizer>();
 
     // Init ImGui.
@@ -108,8 +105,8 @@ void Application::Update() {
 
     auto startPoint = std::chrono::high_resolution_clock::now();
 
-    m_renderer->Draw();
-    m_rasterizer->Render(m_width, m_height);
+    m_renderer->render(m_outputBuffer);
+    m_rasterizer->render(m_width, m_height);
 
     auto endPoint = std::chrono::high_resolution_clock::now();
     auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(endPoint - startPoint);

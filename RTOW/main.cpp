@@ -3,9 +3,9 @@
 
 #include <nvrtc.h>
 
-#include <venusuar/application.hpp>
+#include <venusaur/application.hpp>
 
-#include "renderer_metal.h"
+#include "metal_renderer.hpp"
 
 int main(int argc, char* argv[]) {
     auto aspect_ratio = 16.0 / 9.0;
@@ -28,12 +28,14 @@ int main(int argc, char* argv[]) {
     char* cuda_path = nullptr;
     size_t len;
     auto err = _dupenv_s(&cuda_path, &len, "CUDA_PATH");
-    if (err)
+    if (err) {
         exit(EXIT_FAILURE);
+    }
     char* optix_install_dir = nullptr;
     err = _dupenv_s(&optix_install_dir, &len, "OPTIX_INSTALL_DIR");
-    if (err)
+    if (err) {
         exit(EXIT_FAILURE);
+    }
 #else
     auto cuda_path = std::getenv("CUDA_PATH");
     auto optix_install_dir = std::getenv("OPTIX_INSTALL_DIR");
@@ -67,7 +69,10 @@ int main(int argc, char* argv[]) {
     NVRTC_SAFE_CALL(nvrtcGetOptiXIR(program, optixir.data()));
     NVRTC_SAFE_CALL(nvrtcDestroyProgram(&program));
 
-    app->SetRenderer(std::make_shared<rtow::RendererMetal>(app->GetOutputBuffer(), optixir));
+    auto ray_tracer = std::make_shared<venusaur::RayTracer>();
+    app->SetRenderer(ray_tracer);
+
+    auto renderer = std::make_shared<rtow::MetalRenderer>(ray_tracer, optixir);
 
     while (app->IsRunning()) {
         app->Update();

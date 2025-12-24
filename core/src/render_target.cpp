@@ -1,9 +1,9 @@
-#include <venusuar/output_buffer.hpp>
+#include <venusaur/render_target.hpp>
 
-#include <venusuar/exception.hpp>
+#include <venusaur/exception.hpp>
 
 namespace venusaur {
-OutputBuffer::OutputBuffer(uint32_t width, uint32_t height) : m_width(width), m_height(height) {
+RenderTarget::RenderTarget(uint32_t width, uint32_t height) : m_width(width), m_height(height) {
     if (gl3wInit()) {
         throw std::runtime_error("Failed to initialize GL");
     }
@@ -24,18 +24,18 @@ OutputBuffer::OutputBuffer(uint32_t width, uint32_t height) : m_width(width), m_
     CUDA_CHECK(cudaGraphicsGLRegisterBuffer(&m_gfxResource, m_pbo, cudaGraphicsMapFlagsWriteDiscard));
 }
 
-OutputBuffer::~OutputBuffer() {
+RenderTarget::~RenderTarget() {
     CUDA_CHECK(cudaGraphicsUnregisterResource(m_gfxResource));
 }
 
-uchar4* OutputBuffer::map(CUstream stream) {
+uchar4* RenderTarget::map(CUstream stream) {
     uchar4* image = nullptr;
     CUDA_CHECK(cudaGraphicsMapResources(1, &m_gfxResource, stream));
     CUDA_CHECK(cudaGraphicsResourceGetMappedPointer(reinterpret_cast<void**>(&image), nullptr, m_gfxResource));
     return image;
 }
 
-void OutputBuffer::unmap(CUstream stream) {
+void RenderTarget::unmap(CUstream stream) {
     CUDA_CHECK(cudaGraphicsUnmapResources(1, &m_gfxResource, stream));
 
     glBindBuffer(GL_PIXEL_UNPACK_BUFFER, m_pbo);

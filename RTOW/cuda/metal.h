@@ -1,7 +1,6 @@
 #pragma once
 
-struct MetalParams
-{
+struct MetalParams {
     uchar4* image;
     float3 camera_center;
     float3 pixel00_loc;
@@ -12,8 +11,7 @@ struct MetalParams
     OptixTraversableHandle handle;
 };
 
-struct MetalPayload
-{
+struct MetalPayload {
     unsigned int seed;
     unsigned int depth;
     float3 origin;
@@ -21,15 +19,12 @@ struct MetalPayload
     float3 diffuse;
 };
 
-union Material
-{
-    struct Lambertian
-    {
+union Material {
+    struct Lambertian {
         float3 albedo;
     } lambertian;
 
-    struct Metal
-    {
+    struct Metal {
         float3 albedo;
         float fuzz;
     } metal;
