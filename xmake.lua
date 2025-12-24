@@ -6,6 +6,7 @@ set_languages("c++20")
 
 if is_plat("windows") then
     set_toolchains("clang-cl")
+    add_cxxflags("-Wno-c++23-extensions")
     add_defines("NOMINMAX")
 elseif is_plat("linux") then
     set_toolchains("clang")
@@ -51,6 +52,8 @@ target("core")
     add_files("third_party/imgui/*.cpp", "third_party/imgui/backends/*.cpp")
     -- glm
     add_includedirs("third_party/glm", {public = true})
+    -- proxy
+    add_includedirs("third_party/proxy", {public = true})
     -- cuda
     local cuda_path = os.getenv("CUDA_PATH")
     if cuda_path then

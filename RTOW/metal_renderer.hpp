@@ -18,7 +18,7 @@
 #include "cuda/metal.h"
 
 namespace rtow {
-class MetalRenderer : venusaur::IRenderable {
+class MetalRenderer {
 private:
     union ProgramGroup {
         struct {

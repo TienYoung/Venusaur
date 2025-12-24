@@ -10,7 +10,6 @@
 #include <venusaur/render_target.hpp>
 
 namespace venusaur {
-
 class Application {
 public:
     Application(int width, int height);
@@ -37,7 +36,8 @@ private:
         m_width = width;
         m_height = height;
     }
-    std::shared_ptr<RayTracer> m_renderer = nullptr;
+
+    pro::proxy<Renderable> m_renderer;
     std::shared_ptr<RenderTarget> m_outputBuffer = nullptr;
     std::shared_ptr<Rasterizer> m_rasterizer = nullptr;
 };

@@ -4,6 +4,8 @@
 #include <memory>
 #include <span>
 
+#include <proxy/proxy.h>
+
 #include <cuda_runtime.h>
 
 #include <optix.h>
@@ -12,7 +14,9 @@
 #include <venusaur/render_target.hpp>
 
 namespace venusaur {
-class IRenderable {};
+PRO_DEF_MEM_DISPATCH(RENDER, render);
+
+struct Renderable : ::pro::facade_builder ::add_convention<RENDER, void(std::shared_ptr<RenderTarget>)>::build {};
 
 class RayTracer {
 public:
@@ -22,7 +26,6 @@ public:
     CUstream getCudaStream() const { return m_stream; }
     OptixDeviceContext getOptixContext() const { return m_context; }
     OptixPipeline getPipeline() const { return m_pipeline; }
-    CUdeviceptr getParamsDevicePtr() const { return d_params; }
 
     void mallocParamsOnDevice(size_t size) { CUDA_CHECK(cudaMalloc(reinterpret_cast<void**>(&d_params), size)); }
 
