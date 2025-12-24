@@ -18,10 +18,7 @@ public:
     std::shared_ptr<RenderTarget> GetOutputBuffer() const { return m_outputBuffer; }
     void SetRenderer(std::shared_ptr<RayTracer> renderer) { m_renderer = renderer; }
 
-    void Update();
-
-    bool IsRunning() const { return glfwWindowShouldClose(m_window) == GLFW_FALSE; }
-    void ToggleUi() { m_showUi = !m_showUi; }
+    void run();
 
 private:
     GLFWwindow* m_window = nullptr;
@@ -30,6 +27,8 @@ private:
 
     bool m_showUi = false;
 
+    static void glfwErrorCallback(int error, const char* description);
+    static void glfwKeyCallback(GLFWwindow* window, int32_t key, int32_t scancode, int32_t action, int32_t mods);
     static void glfwResizeCallback(GLFWwindow* window, int width, int height);
 
     void onResize(int width, int height) {

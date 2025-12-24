@@ -74,9 +74,7 @@ int main(int argc, char* argv[]) {
 
     auto renderer = std::make_shared<rtow::MetalRenderer>(ray_tracer, optixir);
 
-    while (app->IsRunning()) {
-        app->Update();
-    }
+    app->run();
 
     return 0;
 }

@@ -9,11 +9,12 @@
 #include <spdlog/spdlog.h>
 
 namespace venusaur {
-static void ErrorCallback(int error, const char* description) {
+void Application::glfwErrorCallback(int error, const char* description) {
     spdlog::error("[GLFW][Error {}] {}", error, description);
 }
 
-static void KeyCallback(GLFWwindow* window, int32_t key, int32_t /*scancode*/, int32_t action, int32_t /*mods*/) {
+void Application::glfwKeyCallback(
+    GLFWwindow* window, int32_t key, int32_t /*scancode*/, int32_t action, int32_t /*mods*/) {
     if (action == GLFW_RELEASE) {
         switch (key) {
         case GLFW_KEY_ESCAPE:
@@ -27,7 +28,8 @@ static void KeyCallback(GLFWwindow* window, int32_t key, int32_t /*scancode*/, i
             }
             break;
         case GLFW_KEY_F1:
-            static_cast<Application*>(glfwGetWindowUserPointer(window))->ToggleUi();
+            auto* app = static_cast<Application*>(glfwGetWindowUserPointer(window));
+            app->m_showUi = !app->m_showUi;
             break;
         }
     }
@@ -42,7 +44,7 @@ void Application::glfwResizeCallback(GLFWwindow* window, int width, int height) 
 
 Application::Application(int width, int height) : m_width(width), m_height(height) {
     // Init glfw.
-    glfwSetErrorCallback(ErrorCallback);
+    glfwSetErrorCallback(glfwErrorCallback);
     if (!glfwInit()) {
         throw std::runtime_error("Failed to init GLFW");
     }
@@ -58,7 +60,7 @@ Application::Application(int width, int height) : m_width(width), m_height(heigh
         throw std::runtime_error("Failed to create a GLFW window!");
     }
 
-    glfwSetKeyCallback(m_window, KeyCallback);
+    glfwSetKeyCallback(m_window, glfwKeyCallback);
     glfwSetWindowUserPointer(m_window, this);
     glfwSetWindowSizeLimits(m_window, m_width, m_height, GLFW_DONT_CARE, GLFW_DONT_CARE);
     glfwSetWindowAspectRatio(m_window, m_width, m_height);
@@ -100,41 +102,42 @@ Application::~Application() {
     glfwTerminate();
 }
 
-void Application::Update() {
-    glfwPollEvents();
+void Application::run() {
+    while (!glfwWindowShouldClose(m_window)) {
+        auto startPoint = std::chrono::high_resolution_clock::now();
 
-    auto startPoint = std::chrono::high_resolution_clock::now();
+        m_renderer->render(m_outputBuffer);
+        m_rasterizer->render(m_width, m_height);
 
-    m_renderer->render(m_outputBuffer);
-    m_rasterizer->render(m_width, m_height);
+        auto endPoint = std::chrono::high_resolution_clock::now();
+        auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(endPoint - startPoint);
 
-    auto endPoint = std::chrono::high_resolution_clock::now();
-    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(endPoint - startPoint);
+        glfwSetWindowTitle(m_window, std::format("Venusaur - {}ms", duration.count()).c_str());
 
-    glfwSetWindowTitle(m_window, std::format("Venusaur - {}ms", duration.count()).c_str());
+        if (m_showUi) {
+            ImGui_ImplOpenGL3_NewFrame();
+            ImGui_ImplGlfw_NewFrame();
+            ImGui::NewFrame();
 
-    if (m_showUi) {
-        ImGui_ImplOpenGL3_NewFrame();
-        ImGui_ImplGlfw_NewFrame();
-        ImGui::NewFrame();
+            ImGui::Begin("Debugging", nullptr);
+            ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.0f, 0.6f, 0.1f, 1.0f));
 
-        ImGui::Begin("Debugging", nullptr);
-        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.0f, 0.6f, 0.1f, 1.0f));
+            ImGui::Text("OpenGL:");
+            ImGui::Indent();
+            ImGui::Text("Time:\t%lldms", duration.count());
+            ImGui::Text("FPS:\t%lld", 1000 / (duration.count() + 1));
+            ImGui::Unindent();
 
-        ImGui::Text("OpenGL:");
-        ImGui::Indent();
-        ImGui::Text("Time:\t%lldms", duration.count());
-        ImGui::Text("FPS:\t%lld", 1000 / (duration.count() + 1));
-        ImGui::Unindent();
+            ImGui::PopStyleColor();
+            ImGui::End();
+            ImGui::EndFrame();
 
-        ImGui::PopStyleColor();
-        ImGui::End();
-        ImGui::EndFrame();
+            ImGui::Render();
+            ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+        }
 
-        ImGui::Render();
-        ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+        glfwSwapBuffers(m_window);
+        glfwPollEvents();
     }
-
-    glfwSwapBuffers(m_window);
 }
 } // namespace venusaur
