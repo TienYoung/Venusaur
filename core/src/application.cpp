@@ -1,6 +1,15 @@
 #include <venusaur/application.hpp>
 
+#include <chrono>
+#include <format>
+#include <memory>
+#include <stdexcept>
+#include <utility>
+
 #include <GL/gl3w.h>
+
+#define GLFW_INCLUDE_NONE
+#include <GLFW/glfw3.h>
 
 #include <imgui.h>
 #include <imgui_impl_glfw.h>
@@ -8,7 +17,137 @@
 
 #include <spdlog/spdlog.h>
 
+#include <venusaur/rasterizer.hpp>
+#include <venusaur/ray_tracer.hpp>
+#include <venusaur/render_target.hpp>
+
 namespace venusaur {
+namespace {
+class GlfwRuntime {
+public:
+    explicit GlfwRuntime(GLFWerrorfun errorCallback) {
+        if (s_active) {
+            throw std::logic_error("Only one Application can be active at a time");
+        }
+
+        glfwSetErrorCallback(errorCallback);
+        if (glfwInit() != GLFW_TRUE) {
+            throw std::runtime_error("Failed to initialize GLFW");
+        }
+        s_active = true;
+    }
+
+    ~GlfwRuntime() noexcept {
+        glfwTerminate();
+        s_active = false;
+    }
+
+    GlfwRuntime(const GlfwRuntime&) = delete;
+    GlfwRuntime& operator=(const GlfwRuntime&) = delete;
+
+private:
+    static inline bool s_active = false;
+};
+
+struct WindowDeleter {
+    void operator()(GLFWwindow* window) const noexcept {
+        if (window != nullptr) {
+            glfwDestroyWindow(window);
+        }
+    }
+};
+
+using Window = std::unique_ptr<GLFWwindow, WindowDeleter>;
+
+class ImGuiSession {
+public:
+    ImGuiSession() = default;
+
+    ~ImGuiSession() noexcept {
+        if (m_openglBackendInitialized) {
+            ImGui_ImplOpenGL3_Shutdown();
+        }
+        if (m_glfwBackendInitialized) {
+            ImGui_ImplGlfw_Shutdown();
+        }
+        if (m_contextCreated) {
+            ImGui::DestroyContext();
+        }
+    }
+
+    ImGuiSession(const ImGuiSession&) = delete;
+    ImGuiSession& operator=(const ImGuiSession&) = delete;
+
+    void initialize(GLFWwindow* window) {
+        IMGUI_CHECKVERSION();
+        if (ImGui::CreateContext() == nullptr) {
+            throw std::runtime_error("Failed to create ImGui context");
+        }
+        m_contextCreated = true;
+
+        ImGuiIO& io = ImGui::GetIO();
+        ImGui::StyleColorsDark();
+
+        if (!ImGui_ImplGlfw_InitForOpenGL(window, true)) {
+            throw std::runtime_error("Failed to initialize ImGui GLFW backend");
+        }
+        m_glfwBackendInitialized = true;
+
+        if (!ImGui_ImplOpenGL3_Init("#version 460 core")) {
+            throw std::runtime_error("Failed to initialize ImGui OpenGL backend");
+        }
+        m_openglBackendInitialized = true;
+
+#ifdef _WIN32
+        ImFont* font = io.Fonts->AddFontFromFileTTF(
+            R"(c:\Windows\Fonts\SegoeUI.ttf)", 18.0f, nullptr, io.Fonts->GetGlyphRangesChineseSimplifiedCommon());
+        if (font == nullptr) {
+            throw std::runtime_error("Failed to load the Windows UI font");
+        }
+#endif
+    }
+
+private:
+    bool m_contextCreated = false;
+    bool m_glfwBackendInitialized = false;
+    bool m_openglBackendInitialized = false;
+};
+} // namespace
+
+struct Application::State {
+    State(Application* owner, int width, int height)
+        : glfw(Application::glfwErrorCallback) {
+        glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
+        glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 6);
+        glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+        glfwWindowHint(GLFW_CONTEXT_DEBUG, GLFW_TRUE);
+
+        window.reset(glfwCreateWindow(width, height, "Venusaur", nullptr, nullptr));
+        if (!window) {
+            throw std::runtime_error("Failed to create a GLFW window");
+        }
+
+        glfwSetKeyCallback(window.get(), Application::glfwKeyCallback);
+        glfwSetWindowUserPointer(window.get(), owner);
+        glfwSetWindowSizeLimits(window.get(), width, height, GLFW_DONT_CARE, GLFW_DONT_CARE);
+        glfwSetWindowAspectRatio(window.get(), width, height);
+        glfwSetWindowSizeCallback(window.get(), Application::glfwResizeCallback);
+        glfwMakeContextCurrent(window.get());
+        glfwSwapInterval(1);
+
+        outputBuffer = std::make_shared<RenderTarget>(width, height);
+        rasterizer = std::make_shared<Rasterizer>();
+        imgui.initialize(window.get());
+    }
+
+    GlfwRuntime glfw;
+    Window window;
+    std::shared_ptr<RayTracer> renderer;
+    std::shared_ptr<RenderTarget> outputBuffer;
+    std::shared_ptr<Rasterizer> rasterizer;
+    ImGuiSession imgui;
+};
+
 void Application::glfwErrorCallback(int error, const char* description) {
     spdlog::error("[GLFW][Error {}] {}", error, description);
 }
@@ -42,77 +181,37 @@ void Application::glfwResizeCallback(GLFWwindow* window, int width, int height) 
     }
 }
 
-Application::Application(int width, int height) : m_width(width), m_height(height) {
-    // Init glfw.
-    glfwSetErrorCallback(glfwErrorCallback);
-    if (!glfwInit()) {
-        throw std::runtime_error("Failed to init GLFW");
-    }
+Application::Application(int width, int height)
+    : m_state(std::make_unique<State>(this, width, height)), m_width(width), m_height(height) {}
 
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 6);
-    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
-    glfwWindowHint(GLFW_CONTEXT_DEBUG, true);
+Application::~Application() = default;
 
-    m_window = glfwCreateWindow(m_width, m_height, "Venusaur", nullptr, nullptr);
-    if (!m_window) {
-        glfwTerminate();
-        throw std::runtime_error("Failed to create a GLFW window!");
-    }
-
-    glfwSetKeyCallback(m_window, glfwKeyCallback);
-    glfwSetWindowUserPointer(m_window, this);
-    glfwSetWindowSizeLimits(m_window, m_width, m_height, GLFW_DONT_CARE, GLFW_DONT_CARE);
-    glfwSetWindowAspectRatio(m_window, m_width, m_height);
-    glfwSetWindowSizeCallback(m_window, glfwResizeCallback);
-    glfwMakeContextCurrent(m_window);
-
-    glfwSwapInterval(1);
-
-    m_outputBuffer = std::make_shared<RenderTarget>(m_width, m_height);
-    m_rasterizer = std::make_shared<Rasterizer>();
-
-    // Init ImGui.
-    IMGUI_CHECKVERSION();
-    ImGui::CreateContext();
-    ImGuiIO& io = ImGui::GetIO();
-    (void)io;
-
-    ImGui::StyleColorsDark();
-
-    ImGui_ImplGlfw_InitForOpenGL(m_window, true);
-    ImGui_ImplOpenGL3_Init("#version 460 core");
-
-#ifdef _WIN32
-    ImFont* font = io.Fonts->AddFontFromFileTTF(
-        R"(c:\Windows\Fonts\SegoeUI.ttf)", 18.0f, nullptr, io.Fonts->GetGlyphRangesChineseSimplifiedCommon());
-    IM_ASSERT(font != nullptr);
-#endif
+std::shared_ptr<RenderTarget> Application::GetOutputBuffer() const {
+    return m_state->outputBuffer;
 }
 
-Application::~Application() {
-    m_outputBuffer.reset();
-    m_renderer.reset();
-
-    ImGui_ImplOpenGL3_Shutdown();
-    ImGui_ImplGlfw_Shutdown();
-    ImGui::DestroyContext();
-
-    glfwDestroyWindow(m_window);
-    glfwTerminate();
+void Application::SetRenderer(std::shared_ptr<RayTracer> renderer) {
+    if (!renderer) {
+        throw std::invalid_argument("Application renderer must not be null");
+    }
+    m_state->renderer = std::move(renderer);
 }
 
 void Application::run() {
-    while (!glfwWindowShouldClose(m_window)) {
+    if (!m_state->renderer) {
+        throw std::logic_error("Application renderer is not configured");
+    }
+
+    while (!glfwWindowShouldClose(m_state->window.get())) {
         auto startPoint = std::chrono::high_resolution_clock::now();
 
-        m_renderer->render(m_outputBuffer);
-        m_rasterizer->render(m_width, m_height);
+        m_state->renderer->render(m_state->outputBuffer);
+        m_state->rasterizer->render(m_width, m_height);
 
         auto endPoint = std::chrono::high_resolution_clock::now();
         auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(endPoint - startPoint);
 
-        glfwSetWindowTitle(m_window, std::format("Venusaur - {}ms", duration.count()).c_str());
+        glfwSetWindowTitle(m_state->window.get(), std::format("Venusaur - {}ms", duration.count()).c_str());
 
         if (m_showUi) {
             ImGui_ImplOpenGL3_NewFrame();
@@ -136,7 +235,7 @@ void Application::run() {
             ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
         }
 
-        glfwSwapBuffers(m_window);
+        glfwSwapBuffers(m_state->window.get());
         glfwPollEvents();
     }
 }

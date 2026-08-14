@@ -6,35 +6,39 @@
 
 - 更新时间：2026-08-13（America/Toronto）
 - 分支：`Reconstruction`
-- 代码基线：`667ed24922c3fdd29ff7ee0289f0eb036ecea281`
-- 当前里程碑：`M0`，`complete`
+- 代码基线：本文件所在提交（M1；父里程碑 M0 为 `3125a5098a4c0ae48eb9a4b4e7ac0c3202e6a143`）
+- 当前里程碑：`M1`，`complete`
 - 工作树预期：里程碑提交后 clean；只允许存在 ignored build/cache 产物
 - 发布策略：每个完成的里程碑本地提交一次，不自动 push
 
-## 当前里程碑：M0 清理与进度基线
+## 当前里程碑：M1 构建基线与 Application 生命周期
 
-目标：清除已知不安全的 Application/C++23 草稿，建立任何新对话都能直接接手的文档入口。
+目标：恢复 Clang 22 下的默认 C++20 构建，并让 `Application` 地址稳定、部分构造失败可清理、析构顺序正确。
 
-已完成：
+实际结果：
 
-- 将五个草稿文件与 stash index `fcc286a` 逐一核对。
-- 只将 `.clangd`、`RTOW/main.cpp`、`application.hpp/.cpp`、`xmake.lua` 恢复到 `667ed24`。
-- 保留草稿的设计意图和失败原因，不保留其实现。
-- 建立稳定指南与动态状态分离的记录方式。
+- 保持 C++20；内部初始化继续用异常，`main` 作为统一错误边界。
+- 移除未形成真实可替换性的 Microsoft Proxy；`Application` 暂时直接持有现有 `RayTracer`。
+- 保留 `Application(int, int)`、`SetRenderer(...)` 和 `run()`，但显式禁止 copy/move。
+- 以成员 RAII 表达 GLFW、window 与 ImGui 生命周期，并用声明顺序保证 GL 资源在 context/window 前释放。
+- 以 PIMPL/forward declaration 收窄 `application.hpp` 的依赖面；第二个并存 Application 会明确失败。
+- 未配置 renderer 时抛出 `logic_error`，应用入口统一记录未处理的 `std::exception` 并返回失败码。
 
 验收条件：
 
-- 五个旧文件与代码基线一致。
-- 默认 Release 配置完成 `rtow` 构建，或将未经扩大修复的原始失败记录在本文件。
-- 文档通过 whitespace/diff 检查。
-- 两份文档在同一里程碑提交中提交，提交后工作树干净。
+- 默认 Release 配置能够完成 `xmake build rtow`，不使用 feature-test macro workaround。
+- active 源码和构建配置不再依赖 Microsoft Proxy。
+- `Application` 不可 copy/move，GLFW callback 中的 `this` 地址稳定。
+- GLFW/window/ImGui 支持部分初始化失败清理；正常析构顺序为 ImGui、GL 对象、window、GLFW runtime。
+- 未设置 renderer 时明确失败，顶层异常记录后返回失败码。
+- 代码与文档通过 `git diff --check` 并在同一 M1 提交中提交。
 
 ## 里程碑路线
 
 | 里程碑 | 状态 | 结果/目标 |
 |---|---|---|
 | M0 清理与进度基线 | complete | 旧草稿已丢弃；指南和状态入口已建立 |
-| M1 构建基线与 Application 生命周期 | pending | 处理 Proxy/Clang blocker；决定 C++20/C++23 和错误策略；修复地址稳定性与 teardown |
+| M1 构建基线与 Application 生命周期 | complete | 默认构建恢复；Application 地址稳定，支持部分失败清理与正确 teardown |
 | M2 底层资源 RAII | pending | 让 GL/CUDA/OptiX handle move-only、部分构造安全、析构不抛 |
 | M3 Active/legacy 边界 | pending | 整理失效教程源码、构建目标与路径大小写 |
 
@@ -44,14 +48,17 @@
 - `2026-08-13`：五个精确路径已恢复到 `HEAD`，未触碰 stash、分支和其他源码。
 - `xmake f -m release --cxxflags=`：成功，确认使用默认配置且没有诊断宏。
 - `xmake build -v rtow`：失败。Clang 22.1.3 即使在 `-std:c++20` 下也让 vendored Proxy v4 进入 `trivially_relocatable_if_eligible` 分支，并在 `proxy.h:929` 等处产生语法错误。
+- `2026-08-13`（M1）：移除 active Proxy 依赖后，`xmake f -m release --cxxflags=` 与 `xmake build -v rtow` 成功，Clang 22.1.3 完成 `rtow.exe` 编译和链接。
+- `2026-08-13`（M1）：`git diff --check` 通过；active 源码与 `xmake.lua` 不再引用 Proxy。
 
 ## 已知 blocker
 
-- 默认 C++20 Release 基线目前不能用 Clang 22.1.3 构建。M1 必须在更新/移除 Proxy、调整受支持工具链或采用正式兼容修复之间作出决定；不要恢复审计用的 feature-test macro workaround。
+- M2 无外部 blocker。当前主要风险在底层资源：`RenderTarget` 未删除 GL texture/PBO，`RayTracer` 未销毁 CUDA stream，多个 raw handle 可复制/覆盖，析构路径中的检查宏可能抛出。
+- 本里程碑只完成 build 验证，未自动运行交互式 GUI；启动、渲染和窗口关闭仍需后续 smoke test 覆盖。
 
 ## 唯一下一步
 
-为 M1 制定决策完整的实施方案：先恢复受支持的默认构建，再重做 Application 生命周期与错误边界。M1 尚未开始。
+启动 M2：先列出 active GL/CUDA/OptiX handle 及 owner/创建/销毁路径，再按依赖顺序实现 move-only、部分构造安全、析构 `noexcept` 的底层 RAII；不要在同一里程碑顺带改 renderer 职责或恢复 RTOW 功能。
 
 ## 交接协议
 

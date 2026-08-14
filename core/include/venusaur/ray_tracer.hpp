@@ -4,8 +4,6 @@
 #include <memory>
 #include <span>
 
-#include <proxy/proxy.h>
-
 #include <cuda_runtime.h>
 
 #include <optix.h>
@@ -14,10 +12,6 @@
 #include <venusaur/render_target.hpp>
 
 namespace venusaur {
-PRO_DEF_MEM_DISPATCH(RENDER, render);
-
-struct Renderable : ::pro::facade_builder ::add_convention<RENDER, void(std::shared_ptr<RenderTarget>)>::build {};
-
 class RayTracer {
 public:
     RayTracer();

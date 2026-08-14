@@ -1,13 +1,17 @@
 #include <filesystem>
 #include <fstream>
+#include <stdexcept>
 
 #include <nvrtc.h>
+
+#include <spdlog/spdlog.h>
 
 #include <venusaur/application.hpp>
 
 #include "metal_renderer.hpp"
 
-int main(int argc, char* argv[]) {
+namespace {
+int run() {
     auto aspect_ratio = 16.0 / 9.0;
     int image_width = 400;
 
@@ -77,4 +81,14 @@ int main(int argc, char* argv[]) {
     app->run();
 
     return 0;
+}
+} // namespace
+
+int main() {
+    try {
+        return run();
+    } catch (const std::exception& error) {
+        spdlog::critical("Venusaur failed: {}", error.what());
+        return EXIT_FAILURE;
+    }
 }

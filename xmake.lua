@@ -52,8 +52,6 @@ target("core")
     add_files("third_party/imgui/*.cpp", "third_party/imgui/backends/*.cpp")
     -- glm
     add_includedirs("third_party/glm", {public = true})
-    -- proxy
-    add_includedirs("third_party/proxy", {public = true})
     -- cuda
     local cuda_path = os.getenv("CUDA_PATH")
     if cuda_path then

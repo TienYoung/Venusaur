@@ -2,33 +2,38 @@
 
 #include <memory>
 
-#define GLFW_INCLUDE_NONE
-#include <GLFW/glfw3.h>
-
-#include <venusaur/rasterizer.hpp>
-#include <venusaur/ray_tracer.hpp>
-#include <venusaur/render_target.hpp>
+struct GLFWwindow;
 
 namespace venusaur {
-class Application {
+class RayTracer;
+class RenderTarget;
+
+class Application final {
 public:
     Application(int width, int height);
     ~Application();
 
-    std::shared_ptr<RenderTarget> GetOutputBuffer() const { return m_outputBuffer; }
-    void SetRenderer(std::shared_ptr<RayTracer> renderer) { m_renderer = renderer; }
+    Application(const Application&) = delete;
+    Application& operator=(const Application&) = delete;
+    Application(Application&&) = delete;
+    Application& operator=(Application&&) = delete;
+
+    [[nodiscard]] std::shared_ptr<RenderTarget> GetOutputBuffer() const;
+    void SetRenderer(std::shared_ptr<RayTracer> renderer);
 
     void run();
 
 private:
-    GLFWwindow* m_window = nullptr;
+    struct State;
+
+    std::unique_ptr<State> m_state;
     int m_width = 256;
     int m_height = 256;
 
     bool m_showUi = false;
 
     static void glfwErrorCallback(int error, const char* description);
-    static void glfwKeyCallback(GLFWwindow* window, int32_t key, int32_t scancode, int32_t action, int32_t mods);
+    static void glfwKeyCallback(GLFWwindow* window, int key, int scancode, int action, int mods);
     static void glfwResizeCallback(GLFWwindow* window, int width, int height);
 
     void onResize(int width, int height) {
@@ -36,8 +41,5 @@ private:
         m_height = height;
     }
 
-    pro::proxy<Renderable> m_renderer;
-    std::shared_ptr<RenderTarget> m_outputBuffer = nullptr;
-    std::shared_ptr<Rasterizer> m_rasterizer = nullptr;
 };
 } // namespace venusaur
