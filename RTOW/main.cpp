@@ -1,9 +1,7 @@
 #include <array>
 #include <cstdlib>
 #include <filesystem>
-#include <format>
 #include <fstream>
-#include <iostream>
 #include <stdexcept>
 #include <string>
 #include <utility>
@@ -12,12 +10,21 @@
 #include <nvrtc.h>
 
 #include <spdlog/spdlog.h>
+#include <spdlog/fmt/fmt.h>
 
 #include <venusaur/application.hpp>
 
 #include "metal_renderer.hpp"
 
 namespace {
+void logCritical(const venusaur::Error& error) {
+    spdlog::critical("[{}:{}] {}: {}",
+                     venusaur::toString(error.domain),
+                     error.code,
+                     error.operation,
+                     error.message);
+}
+
 int run() {
     auto aspect_ratio = 16.0 / 9.0;
     int image_width = 400;
@@ -51,9 +58,9 @@ int run() {
     auto cuda_path = std::getenv("CUDA_PATH");
     auto optix_install_dir = std::getenv("OPTIX_INSTALL_DIR");
 #endif
-    auto cudaInclude = std::format("-I{}/include", cuda_path);
-    auto ccclInclude = std::format("-I{}/include/cccl", cuda_path);
-    auto optixInclude = std::format("-I{}/include", optix_install_dir);
+    auto cudaInclude = fmt::format("-I{}/include", cuda_path);
+    auto ccclInclude = fmt::format("-I{}/include/cccl", cuda_path);
+    auto optixInclude = fmt::format("-I{}/include", optix_install_dir);
 
     std::array options = {
         "-std=c++20",
@@ -73,7 +80,12 @@ int run() {
     NVRTC_SAFE_CALL(nvrtcGetProgramLogSize(program, &size));
     log.resize(size);
     NVRTC_SAFE_CALL(nvrtcGetProgramLog(program, log.data()));
-    std::cerr << log.c_str() << std::endl;
+    if (!log.empty() && log.back() == '\0') {
+        log.pop_back();
+    }
+    if (!log.empty()) {
+        spdlog::info("NVRTC compile log:\n{}", log);
+    }
     auto optixir = std::vector<char>{};
     NVRTC_SAFE_CALL(nvrtcGetOptiXIRSize(program, &size));
     optixir.resize(size);
@@ -82,7 +94,7 @@ int run() {
 
     auto rayTracerResult = venusaur::RayTracer::create();
     if (!rayTracerResult) {
-        spdlog::critical("{}", venusaur::describe(rayTracerResult.error()));
+        logCritical(rayTracerResult.error());
         return EXIT_FAILURE;
     }
     auto ray_tracer = std::move(*rayTracerResult);
@@ -90,7 +102,7 @@ int run() {
 
     auto rendererResult = rtow::MetalRenderer::create(ray_tracer, optixir);
     if (!rendererResult) {
-        spdlog::critical("{}", venusaur::describe(rendererResult.error()));
+        logCritical(rendererResult.error());
         return EXIT_FAILURE;
     }
     auto renderer = std::move(*rendererResult);

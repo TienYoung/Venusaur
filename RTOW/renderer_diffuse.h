@@ -294,10 +294,6 @@ namespace RayTracingInOneWeekend
 			
 			OPTIX_CHECK(optixModuleDestroy(module));
 
-			// char location[2048] = "";
-			// OPTIX_CHECK(optixDeviceContextGetCacheLocation(m_context, location, 2048));
-			// std::cout << "location:" << location << std::endl;
-
 			m_sbt = {
 				.raygenRecord = d_raygenRecord,
 				.missRecordBase = d_missRecordBase,

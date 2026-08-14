@@ -399,10 +399,6 @@ private:
             return result;
         }
 
-        // char location[2048] = "";
-        // OPTIX_CHECK(optixDeviceContextGetCacheLocation(m_context, location, 2048));
-        // std::cout << "location:" << location << std::endl;
-
         ray_tracer->setupShaderBindingTable({
             .missRecordStrideInBytes = sizeof(MissSbtRecord),
             .missRecordCount = 1,

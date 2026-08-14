@@ -38,10 +38,11 @@
 
 #include <GL/gl3w.h>
 
-#include <iostream>
 #include <sstream>
 #include <stdexcept>
 #include <string>
+
+#include <spdlog/spdlog.h>
 
 //------------------------------------------------------------------------------
 //
@@ -114,8 +115,7 @@
 
 #define CUDA_SYNC_CHECK() ::sutil::cudaSyncCheck( __FILE__, __LINE__ )
 
-// A non-throwing variant for use in destructors.
-// An iostream must be provided for output (e.g. std::cerr).
+// A non-throwing variant for use in destructors. Cleanup failures are logged.
 #define CUDA_CHECK_NOTHROW( call )                                             \
     ::sutil::cudaCheckNoThrow( call, #call, __FILE__, __LINE__ )
 
@@ -191,8 +191,7 @@ inline void optixCheckNoThrow( OptixResult res, const char* call, const char* fi
     {
         try
         {
-            std::cerr << "Optix call '" << call << "' failed: " << file << ':'
-                      << line << ")\n";
+            spdlog::error("OptiX cleanup call '{}' failed at {}:{}", call, file, line);
         }
         catch( ... )
         {
@@ -230,9 +229,11 @@ inline void cudaCheckNoThrow( cudaError_t error, const char* call, const char* f
     {
         try
         {
-            std::cerr << "CUDA call (" << call << " ) failed with error: '"
-                      << cudaGetErrorString( error ) << "' (" << file << ":"
-                      << line << ")\n";
+            spdlog::error("CUDA cleanup call '{}' failed with '{}', at {}:{}",
+                          call,
+                          cudaGetErrorString( error ),
+                          file,
+                          line);
         }
         catch( ... )
         {
@@ -301,7 +302,7 @@ inline void glCheck( const char* call, const char* file, unsigned int line )
         std::stringstream ss;
         ss << "GL error " << getGLErrorString( err ) << " at " << file << "("
            << line << "): " << call << '\n';
-        std::cerr << ss.str() << std::endl;
+        spdlog::error("{}", ss.str());
         throw Exception( ss.str().c_str() );
     }
 }
@@ -314,7 +315,7 @@ inline void glCheckErrors( const char* file, unsigned int line )
         std::stringstream ss;
         ss << "GL error " << getGLErrorString( err ) << " at " << file << "("
            << line << ")";
-        std::cerr << ss.str() << std::endl;
+        spdlog::error("{}", ss.str());
         throw Exception( ss.str().c_str() );
     }
 }
@@ -342,8 +343,8 @@ inline void checkGLError()
   do {                                                            \
     nvrtcResult result = x;                                       \
     if (result != NVRTC_SUCCESS) {                                \
-      std::cerr << "\nerror: " #x " failed with error "           \
-                << nvrtcGetErrorString(result) << '\n';           \
+      spdlog::critical("NVRTC call '{}' failed with '{}'",         \
+                       #x, nvrtcGetErrorString(result));           \
       exit(1);                                                    \
     }                                                             \
 } while(0)
@@ -353,8 +354,8 @@ inline void checkGLError()
     if (result != CUDA_SUCCESS) {                                 \
       const char *msg;                                            \
       cuGetErrorName(result, &msg);                               \
-      std::cerr << "\nerror: " #x " failed with error "           \
-                << msg << '\n';                                   \
+      spdlog::critical("CUDA driver call '{}' failed with '{}'",   \
+                       #x, msg);                                   \
       exit(1);                                                    \
     }                                                             \
 } while(0)

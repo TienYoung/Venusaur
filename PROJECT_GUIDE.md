@@ -222,8 +222,13 @@ GPU 端 `__raygen__` 使用 `optixTraverse + optixInvoke` 循环反弹，因此 
 ```powershell
 xmake f -m release
 xmake build rtow
+xmake project -k compile_commands --lsp=clangd build
 xmake run rtow
 ```
+
+最后一条构建数据库命令用于 clangd；它生成 ignored `build/compile_commands.json`。`.clangd` 只定位该数据库，不再重复硬编码 CUDA/OptiX/MSVC 路径。configure、toolchain 或 include 变更后应重新运行该命令。NVRTC 运行时编译的 `.cu` 不属于当前 host compilation database。
+
+日志约定：直接记录的参数交给 spdlog 格式化；仅在 API 需要一个字符串值时使用 spdlog bundled `fmt::format`。active host 代码不再混用 `std::format`、`std::cout` 或 `std::cerr` 记日志。
 
 M0 恢复到 `667ed24` 后，正常 C++20 build 曾因 Proxy/Clang 组合失败。M1 删除未产生实际解耦价值的 Proxy 依赖后恢复构建；M2 将 host C++ 升到 C++23 以使用 `std::expected`（当前 clang-cl 实际采用 `-std:c++latest`），NVRTC device source 仍使用 C++20。默认 Release 已在同一工具链上完成全量编译和链接，审计宏 workaround 从未进入正式配置。
 
@@ -231,7 +236,7 @@ M0 恢复到 `667ed24` 后，正常 C++20 build 曾因 Proxy/Clang 组合失败�
 
 - Git 规范目录名是 `RTOW`，`xmake.lua` 使用 `rtow`。Windows 不敏感，Linux checkout 会找不到路径。
 - 虽然脚本声明 Linux clang，CUDA library path 仍写成 Windows 风格 `lib/x64`，项目当前实际是 Windows-only。
-- `.clangd` 硬编码本机 CUDA/OptiX 路径与 `sm_75`，不是可移植项目配置。
+- compilation database 是 ignored 生成物；新 checkout 或构建配置变更后，clangd 在重新生成它之前会缺少准确的编译命令。
 - CUDA/OptiX 环境缺失时没有在 configure 阶段一致地 fail-fast，最终错误会出现在无条件 include 的 public headers。
 - 709 个 tracked 文件中 665 个位于 `third_party`；分析架构时应默认排除 vendored 代码。
 - 当前没有 CI、自动测试、tag 或有效 README；根 README 只有 `Venusaur`。
@@ -258,6 +263,7 @@ M0 恢复到 `667ed24` 后，正常 C++20 build 曾因 Proxy/Clang 组合失败�
 | 2025 `667ed24` | Application 接管 run loop 与 GLFW callbacks |
 | 2026 M1（本指南所在提交） | 移除无效 Proxy；稳定 Application 地址、部分构造与 teardown；恢复默认构建 |
 | 2026 M2（本指南所在提交） | C++23 Result；active GL/CUDA/OptiX RAII；mapped PBO guard；weak renderer callback |
+| 2026 M2.1（本指南所在提交） | 日志统一到 spdlog/bundled fmt；clangd 接入 xmake compilation database |
 
 `e76db5e` 一次修改了 49 个非 third-party 源/构建文件（约 `2701+ / 6525-`），提交正文却只有 “Uses xmake”。这类没有迁移说明的大提交，而非复杂 merge 图，是今天难以还原设计意图的主要原因。
 

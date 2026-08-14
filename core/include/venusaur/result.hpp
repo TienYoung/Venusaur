@@ -1,9 +1,10 @@
 #pragma once
 
 #include <expected>
-#include <format>
 #include <string>
 #include <string_view>
+
+#include <spdlog/fmt/fmt.h>
 
 namespace venusaur {
 enum class ErrorDomain {
@@ -43,6 +44,6 @@ template <typename T> using Result = std::expected<T, Error>;
 }
 
 [[nodiscard]] inline std::string describe(const Error& error) {
-    return std::format("[{}:{}] {}: {}", toString(error.domain), error.code, error.operation, error.message);
+    return fmt::format("[{}:{}] {}: {}", toString(error.domain), error.code, error.operation, error.message);
 }
 } // namespace venusaur

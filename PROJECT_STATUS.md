@@ -6,25 +6,20 @@
 
 - 更新时间：2026-08-14（America/Toronto）
 - 分支：`Reconstruction`
-- 代码基线：本文件所在提交（M2；M1 为 `40cc3ea`）
-- 当前里程碑：`M2`，`complete`
+- 代码基线：本文件所在提交（M2.1；M2 为 `e668f3f`）
+- 当前里程碑：`M2.1`，`complete`
 - 工作树预期：里程碑提交后 clean；只允许存在 ignored build/cache 产物
 - 发布策略：每个完成的里程碑本地提交一次，不自动 push
 
-## 当前里程碑：M2 底层资源 RAII
+## 当前里程碑：M2.1 日志格式化与 clangd
 
-目标：让 active GL/CUDA/OptiX handle 具有唯一所有者、部分构造安全和无抛析构，并让上层 class 向 Rule of Zero 收敛。
+目标：统一 spdlog/fmt 与字符串格式化边界，并让 clangd 使用 xmake 的真实编译数据库正确解析 host 源码。已完成。
 
-实际结果：
+已锁定边界：
 
-- 主机代码升级到 C++23，项目 Result 采用 `std::expected` 别名，不新增 expected 依赖；NVRTC device source 暂留 C++20。
-- 新建通用 move-only `UniqueResource` 作为叶子 RAII 基础设施；业务/编排 class 不手写 destructor/copy/move。
-- active 范围只包括 `RenderTarget`、`Rasterizer`、`RayTracer`、`MetalRenderer` 及 mapped PBO guard；旧教程 renderer 留给 M3。
-- setup/create/render 的可预期 CUDA/OptiX/GL 失败改为 `Result`；deleter 只做 best-effort cleanup 和诊断，绝不 throw/terminate。
-- 不在 M2 翻转 RayTracer/MetalRenderer 职责，不恢复材质、相机或其他 RTOW 功能。
-- RenderTarget/Rasterizer/RayTracer/MetalRenderer 不再声明 destructor/copy/move；所有 active owner 由通用 `UniqueResource` 或标准智能指针表达。
-- mapped PBO guard 覆盖 render 失败路径；renderer callback 使用 `weak_ptr`，SBT/GAS/params setup 检查配置和容量。
-- OptiX function table definition 从公共 header 移到唯一 `ray_tracer.cpp`。
+- 日志参数直接交给 spdlog；需要生成字符串值的路径使用 spdlog bundled fmt，不再混用 `std::format`。
+- clangd 以 xmake 生成到 ignored `build/compile_commands.json` 的数据库为事实来源；`.clangd` 不重复硬编码 SDK include。
+- 只修 host active 源码诊断；NVRTC `.cu` 的独立语言服务器支持不在本步骤扩展。
 
 ## 已确认的长期架构约束
 
@@ -33,14 +28,12 @@
 - **Rule of Zero：** 业务与编排 class 通过组合窄小 RAII handle 获得自然的 special members；清理逻辑只存在于底层 handle/deleter。
 - M1 的异常边界与显式删除 `Application` copy/move 是安全过渡，不代表最终设计已经满足以上约束。
 
-验收条件：
+验收结果：
 
-- texture/PBO/GL program/VAO、CUDA graphics registration/stream/buffers、OptiX context/pipeline/module/program group 都由 RAII owner 覆盖。
-- 构造或 setup 中途失败不会泄漏已经创建的 active handle；shader 成功 link 后也会释放 shader objects。
-- RayTracer 销毁 CUDA stream；RenderTarget 注销 CUDA interop 后删除 PBO/texture；所有 cleanup 路径 `noexcept`。
-- render 在 map 后任一步失败都会通过 scoped guard 尝试 unmap。
-- 默认 Release 配置完成 `xmake build rtow`，且 `git diff --check` 通过。
-- 代码与文档在同一 M2 提交中提交；交互式 GUI 若未运行必须明确记录。
+- active host 日志直接调用 spdlog；只在需要字符串值时使用 spdlog bundled `fmt::format`，不再使用 `std::format` 或 iostream 打印日志。
+- `.clangd` 只指向 ignored `build/compile_commands.json`，SDK、toolchain、include 和语言标准由 xmake 生成。
+- VS clangd 对 `RTOW/main.cpp` 和 `core/src/render_target.cpp` 自动读取数据库，均完成 0-error check。
+- 默认 Release `xmake build -v rtow` 成功，`git diff --check` 通过。
 
 ## 里程碑路线
 
@@ -49,6 +42,7 @@
 | M0 清理与进度基线 | complete | 旧草稿已丢弃；指南和状态入口已建立 |
 | M1 构建基线与 Application 生命周期 | complete | 默认构建恢复；Application 地址稳定，支持部分失败清理与正确 teardown |
 | M2 底层资源 RAII | complete | C++23 Result + active handle RAII + mapped PBO guard |
+| M2.1 日志格式化与 clangd | complete | 日志统一到 spdlog；字符串用 bundled fmt；clangd 接入 xmake compile database |
 | M3 Active/legacy 边界 | pending | 整理失效教程源码、构建目标与路径大小写 |
 
 ## 最近验证
@@ -63,16 +57,20 @@
 - `2026-08-14`（M2）：`xmake f -m release --cxxflags=` 成功；clang-cl 为 host 选择 `-std:c++latest`。
 - `2026-08-14`（M2）：`xmake build -r -v rtow` 全量成功，完成 `rtow.exe` 编译和链接。
 - `2026-08-14`（M2）：`git diff --check`、active raw-owner 扫描、高层 destructor 扫描和 OptiX function-table 单定义检查通过。
+- `2026-08-14`（M2.1）：`xmake project -k compile_commands --lsp=clangd build` 生成 ignored compilation database；`.clangd` 自动加载成功。
+- `2026-08-14`（M2.1）：VS clangd 22.1.3 检查 `RTOW/main.cpp` 与 `core/src/render_target.cpp`，均为 0 errors。
+- `2026-08-14`（M2.1）：`xmake build -v rtow` 成功；active host 日志扫描和 `git diff --check` 通过。
 
 ## 已知 blocker
 
 - M3 无外部 blocker。active 与 legacy 文件仍混在 `RTOW`/`core` 中，且 xmake 的 `rtow` 路径大小写只在 Windows 上偶然可用。
+- `build/compile_commands.json` 是 ignored 生成物；configure、toolchain 或 include 改变后需重新生成。NVRTC `.cu` 的独立 LSP 支持尚未建立。
 - Application 仍把底层 Result 转为异常，NVRTC 宏仍会 `exit`；它们是最终 Result Pattern 尚未闭合的边界，但不阻塞 M3。
 - M2 未自动运行交互式 GUI；启动、渲染、窗口关闭和真实 teardown 仍需 smoke test 覆盖。
 
 ## 唯一下一步
 
-启动 M3：先根据 xmake include/build graph 给每个 `RTOW`/`core` 文件标记 active 或 legacy，再修正 `RTOW` 路径大小写，并选择“移出 active 源码树”或“整理为可独立构建 examples”；不要在该里程碑重写 renderer 架构。
+开始 M3：声明 active/legacy 边界，先盘点失效教程文件、构建目标与 `RTOW` 路径大小写；开始前先把 M3 标记为 `in_progress` 并锁定去留策略。
 
 ## 交接协议
 

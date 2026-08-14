@@ -1,6 +1,5 @@
 #include <venusaur/ray_tracer.hpp>
 
-#include <format>
 #include <string_view>
 #include <utility>
 
@@ -10,67 +9,31 @@
 #include <optix_stubs.h>
 
 #include <spdlog/spdlog.h>
+#include <spdlog/fmt/fmt.h>
 
 #include <venusaur/exception.hpp>
 
 namespace venusaur {
 namespace {
 void contextLogCallback(unsigned int level, const char* tag, const char* message, void* /*cbdata */) {
-    // static std::string content = "";
-
-    // if(strlen(message) == 0)
-    // 	return;
-
-    // if(content.empty())
-    // 	content = std::format("[OptiX] [{}]\n", tag);
-    // content.append(message);
-
-    // auto cr = strchr(message, '\n');
-    // if(cr == nullptr)
-    // {
-    // 	content.append("\n");
-    // }
-    // else
-    // {
-    // 	switch (level)
-    // 	{
-    // 		case 1:  // fatal
-    // 			spdlog::critical(content);
-    // 			break;
-    // 		case 2:  // error
-    // 			spdlog::error(content);
-    // 			break;
-    // 		case 3:  // warning
-    // 			spdlog::warn(content);
-    // 			break;
-    // 		case 4:  // print / info
-    // 			spdlog::info(content);
-    // 			break;
-    // 		default: // others
-    // 			spdlog::debug(content);
-    // 			break;
-    // 	}
-    // 	content.clear();
-    // }
-
-    const auto log_msg = std::format("[OptiX] [{}] {}", tag, message);
+    spdlog::level::level_enum logLevel = spdlog::level::debug;
     switch (level) {
     case 1: // fatal
-        spdlog::critical(log_msg);
+        logLevel = spdlog::level::critical;
         break;
     case 2: // error
-        spdlog::error(log_msg);
+        logLevel = spdlog::level::err;
         break;
     case 3: // warning
-        spdlog::warn(log_msg);
+        logLevel = spdlog::level::warn;
         break;
     case 4: // print / info
-        spdlog::info(log_msg);
+        logLevel = spdlog::level::info;
         break;
-    default: // others
-        spdlog::debug(log_msg);
+    default:
         break;
     }
+    spdlog::log(logLevel, "[OptiX] [{}] {}", tag, message);
 }
 } // namespace
 
@@ -278,7 +241,7 @@ Result<void> RayTracer::render(std::shared_ptr<RenderTarget> render_target) {
         return std::unexpected(Error{
             .domain = ErrorDomain::application,
             .operation = "RayTracer::render",
-            .message = std::format("Launch parameter size {} exceeds allocation capacity {}",
+            .message = fmt::format("Launch parameter size {} exceeds allocation capacity {}",
                                    params->size(),
                                    m_paramsCapacity),
         });

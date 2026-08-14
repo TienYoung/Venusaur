@@ -1,7 +1,6 @@
 #include <venusaur/application.hpp>
 
 #include <chrono>
-#include <format>
 #include <memory>
 #include <stdexcept>
 #include <utility>
@@ -16,6 +15,7 @@
 #include <imgui_impl_opengl3.h>
 
 #include <spdlog/spdlog.h>
+#include <spdlog/fmt/fmt.h>
 
 #include <venusaur/rasterizer.hpp>
 #include <venusaur/ray_tracer.hpp>
@@ -222,7 +222,7 @@ void Application::run() {
         auto endPoint = std::chrono::high_resolution_clock::now();
         auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(endPoint - startPoint);
 
-        glfwSetWindowTitle(m_state->window.get(), std::format("Venusaur - {}ms", duration.count()).c_str());
+        glfwSetWindowTitle(m_state->window.get(), fmt::format("Venusaur - {}ms", duration.count()).c_str());
 
         if (m_showUi) {
             ImGui_ImplOpenGL3_NewFrame();
