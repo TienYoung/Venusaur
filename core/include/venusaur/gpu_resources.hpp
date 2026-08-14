@@ -41,9 +41,7 @@ struct GlVertexArrayDeleter {
 };
 
 struct CudaMemoryDeleter {
-    void operator()(CUdeviceptr value) const noexcept {
-        CUDA_CHECK_NOTHROW(cudaFree(reinterpret_cast<void*>(value)));
-    }
+    void operator()(CUdeviceptr value) const noexcept { CUDA_CHECK_NOTHROW(cudaFree(reinterpret_cast<void*>(value))); }
 };
 
 struct CudaStreamDeleter {
@@ -57,9 +55,7 @@ struct CudaGraphicsResourceDeleter {
 };
 
 struct OptixDeviceContextDeleter {
-    void operator()(OptixDeviceContext value) const noexcept {
-        OPTIX_CHECK_NOTHROW(optixDeviceContextDestroy(value));
-    }
+    void operator()(OptixDeviceContext value) const noexcept { OPTIX_CHECK_NOTHROW(optixDeviceContextDestroy(value)); }
 };
 
 struct OptixPipelineDeleter {
@@ -71,9 +67,7 @@ struct OptixModuleDeleter {
 };
 
 struct OptixProgramGroupDeleter {
-    void operator()(OptixProgramGroup value) const noexcept {
-        OPTIX_CHECK_NOTHROW(optixProgramGroupDestroy(value));
-    }
+    void operator()(OptixProgramGroup value) const noexcept { OPTIX_CHECK_NOTHROW(optixProgramGroupDestroy(value)); }
 };
 
 struct GraphicsMapHandle {
@@ -96,8 +90,7 @@ using GlProgram = UniqueResource<GLuint, 0, GlProgramDeleter>;
 using GlVertexArray = UniqueResource<GLuint, 0, GlVertexArrayDeleter>;
 using CudaDeviceBuffer = UniqueResource<CUdeviceptr, 0, CudaMemoryDeleter>;
 using CudaStream = UniqueResource<CUstream, nullptr, CudaStreamDeleter>;
-using CudaGraphicsRegistration =
-    UniqueResource<cudaGraphicsResource*, nullptr, CudaGraphicsResourceDeleter>;
+using CudaGraphicsRegistration = UniqueResource<cudaGraphicsResource*, nullptr, CudaGraphicsResourceDeleter>;
 using OptixContext = UniqueResource<OptixDeviceContext, nullptr, OptixDeviceContextDeleter>;
 using OptixPipelineHandle = UniqueResource<OptixPipeline, nullptr, OptixPipelineDeleter>;
 using OptixModuleHandle = UniqueResource<OptixModule, nullptr, OptixModuleDeleter>;
@@ -113,9 +106,7 @@ using ScopedGraphicsMap = UniqueResource<GraphicsMapHandle, GraphicsMapHandle{},
     };
 }
 
-[[nodiscard]] inline Error optixError(OptixResult code,
-                                      std::string_view operation,
-                                      std::string_view detail = {}) {
+[[nodiscard]] inline Error optixError(OptixResult code, std::string_view operation, std::string_view detail = {}) {
     std::string message = optixGetErrorString(code);
     if (!detail.empty()) {
         message.append("\n");
@@ -145,9 +136,8 @@ using ScopedGraphicsMap = UniqueResource<GraphicsMapHandle, GraphicsMapHandle{},
     return {};
 }
 
-[[nodiscard]] inline Result<void> checkOptix(OptixResult code,
-                                             std::string_view operation,
-                                             std::string_view detail = {}) {
+[[nodiscard]] inline Result<void>
+checkOptix(OptixResult code, std::string_view operation, std::string_view detail = {}) {
     if (code != OPTIX_SUCCESS) {
         return std::unexpected(optixError(code, operation, detail));
     }
@@ -184,8 +174,7 @@ using ScopedGraphicsMap = UniqueResource<GraphicsMapHandle, GraphicsMapHandle{},
 
 [[nodiscard]] inline Result<CudaGraphicsRegistration> registerCudaGraphicsBuffer(GLuint buffer) {
     cudaGraphicsResource* resource = nullptr;
-    const cudaError_t code =
-        cudaGraphicsGLRegisterBuffer(&resource, buffer, cudaGraphicsMapFlagsWriteDiscard);
+    const cudaError_t code = cudaGraphicsGLRegisterBuffer(&resource, buffer, cudaGraphicsMapFlagsWriteDiscard);
     CudaGraphicsRegistration owner{resource};
     if (code != cudaSuccess) {
         return std::unexpected(cudaError(code, "cudaGraphicsGLRegisterBuffer"));

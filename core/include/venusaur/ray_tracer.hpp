@@ -27,8 +27,8 @@ public:
                                              const OptixPipelineLinkOptions& link_options,
                                              std::span<OptixProgramGroup> program_group);
 
-    [[nodiscard]] Result<OptixTraversableHandle>
-    createAccelBuffer(const OptixAccelBuildOptions& accel_build_options, const OptixBuildInput& build_input);
+    [[nodiscard]] Result<OptixTraversableHandle> createAccelBuffer(const OptixAccelBuildOptions& accel_build_options,
+                                                                   const OptixBuildInput& build_input);
 
     void setupShaderBindingTable(OptixShaderBindingTable sbt,
                                  CudaDeviceBuffer raygenRecord,

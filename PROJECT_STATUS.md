@@ -6,20 +6,21 @@
 
 - 更新时间：2026-08-14（America/Toronto）
 - 分支：`Reconstruction`
-- 代码基线：本文件所在提交（M2.2；M2.1 为 `6c96d42`）
-- 当前里程碑：`M2.2`，`complete`
+- 代码基线：本文件所在提交（M2.3；M2.2 为 `9f3a44c`）
+- 当前里程碑：`M2.3`，`complete`
 - 工作树预期：里程碑提交后 clean；只允许存在 ignored build/cache 产物
 - 发布策略：每个完成的里程碑本地提交一次，不自动 push
 
-## 当前里程碑：M2.2 格式化边界修正
+## 当前里程碑：M2.3 格式与交接基线
 
-目标：修正 M2.1 过度扩大的依赖边界；spdlog 只负责日志，普通字符串生成使用 C++ 标准库。
+目标：建立 clang-format 一致性基线，并把今日进度、当前架构与新对话的接手路径固化到项目文档。
 
 验收结果：
 
-- `spdlog::*` 格式化接口只用于日志输出，不先构造中间日志字符串。
-- NVRTC 选项、窗口标题、Error description 和 Result 错误消息恢复为 `std::format`。
-- `result.hpp` 等非日志边界不依赖 spdlog bundled fmt。
+- 只格式化 active 且由项目维护的 C/C++ 源码；排除 `third_party` 与 legacy 教程文件。
+- 使用仓库 `.clang-format` 和 VS LLVM clang-format 22.1.3；先 dry-run，再应用并审查差异。
+- 今后每次生成或修改 C/C++ 代码，验收前必须对变更的自有源文件运行 clang-format。
+- 指南增加当前架构图；状态文件保留精简的今日总结和唯一下一步。
 
 ## 已确认的长期架构约束
 
@@ -37,7 +38,17 @@
 | M2 底层资源 RAII | complete | C++23 Result + active handle RAII + mapped PBO guard |
 | M2.1 日志与 clangd | complete | 日志入口统一到 spdlog；clangd 接入 xmake compile database；普通字符串误用 bundled fmt 由 M2.2 纠正 |
 | M2.2 格式化边界修正 | complete | spdlog 只负责日志；非日志字符串使用 `std::format` |
+| M2.3 格式与交接基线 | complete | active 源码 clang-format 基线；今日总结与当前/目标架构图 |
 | M3 Active/legacy 边界 | pending | 整理失效教程源码、构建目标与路径大小写 |
+
+## 本轮进度总结（2026-08-13 至 2026-08-14）
+
+- M0：审计并丢弃有悬空 callback、泄漏和错误模型缺口的旧 `expected + RAII` 草稿；建立指南和状态入口。
+- M1：移除未完成依赖反转且阻塞 Clang 22 的 Microsoft Proxy 接入；稳定 Application 地址、GLFW/ImGui teardown 和默认构建。IoC 仍是目标，Proxy 不是目标本身。
+- 架构意图：确认 composition-root IoC、C++23 `Result<T> = std::expected<T, Error>` 与业务 class Rule of Zero。
+- M2：以 `UniqueResource` 覆盖 active GL/CUDA/OptiX handle，建立部分构造安全、无抛 cleanup、mapped PBO guard 和 weak renderer callback。
+- M2.1–M2.2：日志直接交给 spdlog；非日志字符串使用 `std::format`；clangd 改为读取 xmake compilation database。
+- M2.3：建立 active 源码 clang-format 22.1.3 基线与强制验收协议，并固化今日总结与当前/目标架构图。
 
 ## 最近验证
 
@@ -57,6 +68,8 @@
 - `2026-08-14`（M2.2）：非 third-party 源码不再包含 `spdlog/fmt`、`fmt::format`、`std::cout` 或 `std::cerr`；六处 `std::format` 均用于非日志字符串。
 - `2026-08-14`（M2.2）：`xmake build -v rtow` 成功；clangd 对 `RTOW/main.cpp` 以及 Application/RayTracer 修改行检查均为 0 errors；`git diff --check` 通过。
 - clangd 整文件 `--check` Application 时会在内置 ExtractFunction 动作上报 3 个 break/continue 提取错误；AST 构建、源码诊断和修改行检查正常，不是编译错误。
+- `2026-08-14`（M2.3）：VS LLVM clang-format 22.1.3 对 active 自有源码建立基线，随后 `--dry-run --Werror` 通过；`third_party` 和 legacy 未改写。
+- `2026-08-14`（M2.3）：`xmake build -v rtow` 成功；clangd 对 `RTOW/main.cpp` 与 `core/src/render_target.cpp` 均为 0 errors；`git diff --check` 通过。
 
 ## 已知 blocker
 
@@ -74,4 +87,5 @@
 1. 开始工作前读取本文件和 `git status --short --branch`。
 2. 开始一个里程碑时，先写明 `in_progress`、目标和验收条件。
 3. 完成时记录结果、验证和唯一下一步；代码与文档一起提交。
-4. 若中途停止，保留 `in_progress` 状态和明确的恢复动作，不用聊天上下文代替项目状态。
+4. 生成或修改自有 C/C++ 源码后，使用仓库 `.clang-format` 格式化变更文件，并以 `--dry-run --Werror` 验收；排除 third-party 和 legacy。
+5. 若中途停止，保留 `in_progress` 状态和明确的恢复动作，不用聊天上下文代替项目状态。

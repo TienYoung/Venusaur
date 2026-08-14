@@ -150,11 +150,11 @@ Result<void> RayTracer::setupPipeline(const OptixPipelineCompileOptions& compile
 }
 
 Result<OptixTraversableHandle> RayTracer::createAccelBuffer(const OptixAccelBuildOptions& accel_build_options,
-                                                           const OptixBuildInput& build_input) {
+                                                            const OptixBuildInput& build_input) {
     OptixAccelBufferSizes accel_buffer_sizes = {};
-    if (auto result = checkOptix(optixAccelComputeMemoryUsage(
-                                     m_context.get(), &accel_build_options, &build_input, 1, &accel_buffer_sizes),
-                                 "optixAccelComputeMemoryUsage");
+    if (auto result = checkOptix(
+            optixAccelComputeMemoryUsage(m_context.get(), &accel_build_options, &build_input, 1, &accel_buffer_sizes),
+            "optixAccelComputeMemoryUsage");
         !result) {
         return std::unexpected(std::move(result.error()));
     }
@@ -241,17 +241,14 @@ Result<void> RayTracer::render(std::shared_ptr<RenderTarget> render_target) {
         return std::unexpected(Error{
             .domain = ErrorDomain::application,
             .operation = "RayTracer::render",
-            .message = std::format("Launch parameter size {} exceeds allocation capacity {}",
-                                   params->size(),
-                                   m_paramsCapacity),
+            .message = std::format(
+                "Launch parameter size {} exceeds allocation capacity {}", params->size(), m_paramsCapacity),
         });
     }
 
-    if (auto result = checkCuda(cudaMemcpy(reinterpret_cast<void*>(m_params.get()),
-                                           params->data(),
-                                           params->size(),
-                                           cudaMemcpyHostToDevice),
-                                "copy launch parameters");
+    if (auto result = checkCuda(
+            cudaMemcpy(reinterpret_cast<void*>(m_params.get()), params->data(), params->size(), cudaMemcpyHostToDevice),
+            "copy launch parameters");
         !result) {
         return result;
     }

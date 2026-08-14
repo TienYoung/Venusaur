@@ -18,11 +18,7 @@
 
 namespace {
 void logCritical(const venusaur::Error& error) {
-    spdlog::critical("[{}:{}] {}: {}",
-                     venusaur::toString(error.domain),
-                     error.code,
-                     error.operation,
-                     error.message);
+    spdlog::critical("[{}:{}] {}: {}", venusaur::toString(error.domain), error.code, error.operation, error.message);
 }
 
 int run() {

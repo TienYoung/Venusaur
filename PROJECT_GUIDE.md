@@ -122,14 +122,27 @@ Venusaur 历史上确实完成过一版 OptiX 的 *Ray Tracing in One Weekend*�
 
 ```mermaid
 flowchart TD
-    Main["RTOW/main.cpp\ncomposition root"] --> App["Application\nGLFW + ImGui + loop"]
-    Main --> MR["MetalRenderer\nscene/pipeline configurator"]
-    App --> RT["RayTracer\nOptiX launch owner"]
-    MR -->|"mutates/configures"| RT
-    RT --> Surface["RenderTarget\nGL texture + PBO + CUDA interop"]
-    App --> Presenter["Rasterizer\nfullscreen triangle"]
+    Main["RTOW/main.cpp\ncomposition root"] --> App["Application"]
+    Main --> NVRTC["NVRTC\ncuda/metal.cu -> OptiX IR"]
+    Main --> RT["RayTracer\nCUDA/OptiX owner + launch"]
+    NVRTC --> MR["MetalRenderer\nscene/pipeline configurator"]
+    Main --> MR
+    MR -->|"configure GAS / pipeline / SBT / params callback"| RT
+    Main -->|"SetRenderer(shared_ptr)"| App
+
+    subgraph State["Application::State ownership"]
+        GLFW["GlfwRuntime + Window"]
+        Surface["RenderTarget\nGL texture + PBO + CUDA interop"]
+        Presenter["Rasterizer\nfullscreen triangle"]
+        UI["ImGuiSession"]
+    end
+
+    App --> State
+    App -->|"run: render(Result)"| RT
+    RT -->|"map / optixLaunch / unmap"| Surface
     Surface -->|"texture unit 0"| Presenter
-    Shader["NVRTC: cuda/metal.cu"] --> MR
+    App -->|"draw / swap / events"| Presenter
+    App --> UI
 ```
 
 每帧路径：
@@ -230,6 +243,15 @@ xmake run rtow
 
 日志约定：日志参数直接交给 `spdlog::*` 格式化，不先生成中间字符串；非日志 API 需要字符串值时使用 C++ `std::format`。因此普通字符串处理不依赖 spdlog bundled fmt，active host 代码也不使用 `std::cout` 或 `std::cerr` 记日志。
 
+格式化约定：仓库 `.clang-format` 是唯一风格来源；当前基线用 VS LLVM clang-format 22.1.3 生成，`Standard: Latest` 用于解析 C++23。每次生成或修改项目自有 C/C++ 代码后，提交前对变更文件执行：
+
+```powershell
+clang-format -i --style=file --fallback-style=none <changed-project-files>
+clang-format --dry-run --Werror --style=file --fallback-style=none <changed-project-files>
+```
+
+`third_party` 和已标记的 legacy 教程文件不参与自动格式化；不要用全仓库 glob 重写 vendored 代码。
+
 M0 恢复到 `667ed24` 后，正常 C++20 build 曾因 Proxy/Clang 组合失败。M1 删除未产生实际解耦价值的 Proxy 依赖后恢复构建；M2 将 host C++ 升到 C++23 以使用 `std::expected`（当前 clang-cl 实际采用 `-std:c++latest`），NVRTC device source 仍使用 C++20。默认 Release 已在同一工具链上完成全量编译和链接，审计宏 workaround 从未进入正式配置。
 
 其他构建问题：
@@ -261,10 +283,11 @@ M0 恢复到 `667ed24` 后，正常 C++20 build 曾因 Proxy/Clang 组合失败�
 | 2025 `f81546a` | 删除 renderer_base，拆出 RayTracer 与 RenderTarget |
 | 2025 `8d8cfc4` | 引入 Microsoft Proxy，尝试 IoC/type erasure |
 | 2025 `667ed24` | Application 接管 run loop 与 GLFW callbacks |
-| 2026 M1（本指南所在提交） | 移除无效 Proxy；稳定 Application 地址、部分构造与 teardown；恢复默认构建 |
-| 2026 M2（本指南所在提交） | C++23 Result；active GL/CUDA/OptiX RAII；mapped PBO guard；weak renderer callback |
+| 2026 M1 `40cc3ea` | 移除无效 Proxy；稳定 Application 地址、部分构造与 teardown；恢复默认构建 |
+| 2026 M2 `e668f3f` | C++23 Result；active GL/CUDA/OptiX RAII；mapped PBO guard；weak renderer callback |
 | 2026 M2.1 `6c96d42` | 日志入口统一到 spdlog；clangd 接入 xmake compilation database |
-| 2026 M2.2（本指南所在提交） | 修正格式化边界：非日志字符串使用 `std::format`，不依赖 spdlog |
+| 2026 M2.2 `9f3a44c` | 修正格式化边界：非日志字符串使用 `std::format`，不依赖 spdlog |
+| 2026 M2.3（本指南所在提交） | active 源码 clang-format 基线；格式化验收协议；今日总结与架构图 |
 
 `e76db5e` 一次修改了 49 个非 third-party 源/构建文件（约 `2701+ / 6525-`），提交正文却只有 “Uses xmake”。这类没有迁移说明的大提交，而非复杂 merge 图，是今天难以还原设计意图的主要原因。
 
@@ -293,28 +316,22 @@ M0 恢复到 `667ed24` 后，正常 C++20 build 曾因 Proxy/Clang 组合失败�
 
 不要把项目扩成通用引擎；对这个规模，一个小而明确的 OptiX runtime + RTOW renderer 足够。
 
-```text
-Application / Window
-  |- ImGuiSession
-  |- InteropSurface          # GL texture/PBO/CUDA registration
-  |- FullscreenPresenter     # 显式接收 surface texture
-  `- unique_ptr<IRenderer>
+```mermaid
+flowchart TD
+    Main["main\ncomposition root"] --> App["Application / Window"]
+    Main --> Renderer["MetalPathTracer : IRenderer"]
+    App -->|"unique ownership via small capability"| Renderer
 
-OptixDevice
-  |- selected CUDA device/context/stream
-  `- OptixDeviceContext
+    App --> Window["GLFW + ImGuiSession"]
+    App --> Surface["InteropSurface\ntexture + PBO + CUDA registration"]
+    App --> Presenter["FullscreenPresenter\nexplicit surface input"]
 
-MetalPathTracer : IRenderer
-  |- OptixDevice reference/ownership
-  |- SceneGpu / Accel
-  |- PipelineBundle
-  |    |- Modules
-  |    |- ProgramGroups
-  |    |- Pipeline
-  |    `- SBT-owned DeviceBuffers
-  |- DeviceBuffer<MetalParams>
-  |- Camera
-  `- accumulation + reset state
+    Renderer --> Device["OptixDevice\nCUDA device/context/stream"]
+    Renderer --> Scene["SceneGpu + Accel"]
+    Renderer --> Pipeline["PipelineBundle\nmodules + program groups + pipeline + SBT"]
+    Renderer --> Frame["params + camera + accumulation/reset"]
+    Renderer -->|"render(surface, frameContext) -> Result"| Surface
+    Surface --> Presenter
 ```
 
 边界原则：

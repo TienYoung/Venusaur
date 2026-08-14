@@ -115,8 +115,7 @@ private:
 } // namespace
 
 struct Application::State {
-    State(Application* owner, int width, int height)
-        : glfw(Application::glfwErrorCallback) {
+    State(Application* owner, int width, int height) : glfw(Application::glfwErrorCallback) {
         glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
         glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 6);
         glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);

@@ -42,20 +42,19 @@ public:
         }
 
         std::weak_ptr<MetalRenderer> weakRenderer = renderer;
-        ray_tracer->setRenderCallback(
-            [weakRenderer](uchar4* image,
-                           uint32_t width,
-                           uint32_t height) -> venusaur::Result<std::span<const std::byte>> {
-                auto locked = weakRenderer.lock();
-                if (!locked) {
-                    return std::unexpected(venusaur::Error{
-                        .domain = venusaur::ErrorDomain::application,
-                        .operation = "MetalRenderer::setupParams",
-                        .message = "Metal renderer no longer exists",
-                    });
-                }
-                return locked->setupParams(image, width, height);
-            });
+        ray_tracer->setRenderCallback([weakRenderer](uchar4* image,
+                                                     uint32_t width,
+                                                     uint32_t height) -> venusaur::Result<std::span<const std::byte>> {
+            auto locked = weakRenderer.lock();
+            if (!locked) {
+                return std::unexpected(venusaur::Error{
+                    .domain = venusaur::ErrorDomain::application,
+                    .operation = "MetalRenderer::setupParams",
+                    .message = "Metal renderer no longer exists",
+                });
+            }
+            return locked->setupParams(image, width, height);
+        });
 
         return renderer;
     }
@@ -104,7 +103,7 @@ private:
                                                          sphereCenter.data(),
                                                          sizeof(sphereCenter),
                                                          cudaMemcpyHostToDevice),
-                                               "copy sphere centers");
+                                              "copy sphere centers");
             !result) {
             return result;
         }
@@ -117,7 +116,7 @@ private:
                                                          sphereRadius.data(),
                                                          sizeof(sphereRadius),
                                                          cudaMemcpyHostToDevice),
-                                               "copy sphere radii");
+                                              "copy sphere radii");
             !result) {
             return result;
         }
@@ -130,7 +129,7 @@ private:
                                                          indices.data(),
                                                          sizeof(indices),
                                                          cudaMemcpyHostToDevice),
-                                               "copy SBT indices");
+                                              "copy SBT indices");
             !result) {
             return result;
         }
@@ -203,8 +202,7 @@ private:
                                                            &log_length,
                                                            &module);
         venusaur::OptixModuleHandle moduleOwner{module};
-        if (auto result = venusaur::checkOptix(
-                moduleResult, "optixModuleCreate", std::string_view(log, log_length));
+        if (auto result = venusaur::checkOptix(moduleResult, "optixModuleCreate", std::string_view(log, log_length));
             !result) {
             return result;
         }
@@ -275,17 +273,17 @@ private:
             char log[2048];
             size_t log_length = sizeof(log);
             const OptixResult groupResult = optixProgramGroupCreate(ray_tracer->getOptixContext(),
-                                                                     programGroupDesc.data(),
-                                                                     programGroupDesc.size(),
-                                                                     &programGroupOptions,
-                                                                     log,
-                                                                     &log_length,
-                                                                     programGroup.array.data());
+                                                                    programGroupDesc.data(),
+                                                                    programGroupDesc.size(),
+                                                                    &programGroupOptions,
+                                                                    log,
+                                                                    &log_length,
+                                                                    programGroup.array.data());
             for (std::size_t index = 0; index < programGroup.array.size(); ++index) {
                 programGroupOwners[index].reset(programGroup.array[index]);
             }
-            if (auto result = venusaur::checkOptix(
-                    groupResult, "optixProgramGroupCreate", std::string_view(log, log_length));
+            if (auto result =
+                    venusaur::checkOptix(groupResult, "optixProgramGroupCreate", std::string_view(log, log_length));
                 !result) {
                 return result;
             }
@@ -318,7 +316,7 @@ private:
                                                          &raygenRecord,
                                                          sizeof(RayGenSbtRecord),
                                                          cudaMemcpyHostToDevice),
-                                               "copy raygen SBT record");
+                                              "copy raygen SBT record");
             !result) {
             return result;
         }
@@ -328,8 +326,8 @@ private:
             return std::unexpected(std::move(missRecordBuffer.error()));
         }
         MissSbtRecord missRecord = {};
-        if (auto result = venusaur::checkOptix(optixSbtRecordPackHeader(programGroup.miss, &missRecord),
-                                               "pack miss SBT record");
+        if (auto result =
+                venusaur::checkOptix(optixSbtRecordPackHeader(programGroup.miss, &missRecord), "pack miss SBT record");
             !result) {
             return result;
         }
@@ -337,7 +335,7 @@ private:
                                                          &missRecord,
                                                          sizeof(MissSbtRecord),
                                                          cudaMemcpyHostToDevice),
-                                               "copy miss SBT record");
+                                              "copy miss SBT record");
             !result) {
             return result;
         }
@@ -394,23 +392,24 @@ private:
                                                          hitGroupRecords.data(),
                                                          sizeof(hitGroupRecords),
                                                          cudaMemcpyHostToDevice),
-                                               "copy hitgroup SBT records");
+                                              "copy hitgroup SBT records");
             !result) {
             return result;
         }
 
-        ray_tracer->setupShaderBindingTable({
-            .missRecordStrideInBytes = sizeof(MissSbtRecord),
-            .missRecordCount = 1,
-            .hitgroupRecordStrideInBytes = sizeof(HitGroupSbtRecord),
-            .hitgroupRecordCount = hitGroupRecords.size(),
-            .callablesRecordBase = NULL,
-            .callablesRecordStrideInBytes = 0,
-            .callablesRecordCount = 0,
-        },
-                                            std::move(*raygenRecordBuffer),
-                                            std::move(*missRecordBuffer),
-                                            std::move(*hitgroupRecordBuffer));
+        ray_tracer->setupShaderBindingTable(
+            {
+                .missRecordStrideInBytes = sizeof(MissSbtRecord),
+                .missRecordCount = 1,
+                .hitgroupRecordStrideInBytes = sizeof(HitGroupSbtRecord),
+                .hitgroupRecordCount = hitGroupRecords.size(),
+                .callablesRecordBase = NULL,
+                .callablesRecordStrideInBytes = 0,
+                .callablesRecordCount = 0,
+            },
+            std::move(*raygenRecordBuffer),
+            std::move(*missRecordBuffer),
+            std::move(*hitgroupRecordBuffer));
 
         if (auto result = ray_tracer->allocateParams(sizeof(MetalParams)); !result) {
             return result;
