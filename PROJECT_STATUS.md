@@ -6,20 +6,20 @@
 
 - 更新时间：2026-08-14（America/Toronto）
 - 分支：`Reconstruction`
-- 代码基线：本文件所在提交（M2.1；M2 为 `e668f3f`）
-- 当前里程碑：`M2.1`，`complete`
+- 代码基线：本文件所在提交（M2.2；M2.1 为 `6c96d42`）
+- 当前里程碑：`M2.2`，`complete`
 - 工作树预期：里程碑提交后 clean；只允许存在 ignored build/cache 产物
 - 发布策略：每个完成的里程碑本地提交一次，不自动 push
 
-## 当前里程碑：M2.1 日志格式化与 clangd
+## 当前里程碑：M2.2 格式化边界修正
 
-目标：统一 spdlog/fmt 与字符串格式化边界，并让 clangd 使用 xmake 的真实编译数据库正确解析 host 源码。已完成。
+目标：修正 M2.1 过度扩大的依赖边界；spdlog 只负责日志，普通字符串生成使用 C++ 标准库。
 
-已锁定边界：
+验收结果：
 
-- 日志参数直接交给 spdlog；需要生成字符串值的路径使用 spdlog bundled fmt，不再混用 `std::format`。
-- clangd 以 xmake 生成到 ignored `build/compile_commands.json` 的数据库为事实来源；`.clangd` 不重复硬编码 SDK include。
-- 只修 host active 源码诊断；NVRTC `.cu` 的独立语言服务器支持不在本步骤扩展。
+- `spdlog::*` 格式化接口只用于日志输出，不先构造中间日志字符串。
+- NVRTC 选项、窗口标题、Error description 和 Result 错误消息恢复为 `std::format`。
+- `result.hpp` 等非日志边界不依赖 spdlog bundled fmt。
 
 ## 已确认的长期架构约束
 
@@ -28,13 +28,6 @@
 - **Rule of Zero：** 业务与编排 class 通过组合窄小 RAII handle 获得自然的 special members；清理逻辑只存在于底层 handle/deleter。
 - M1 的异常边界与显式删除 `Application` copy/move 是安全过渡，不代表最终设计已经满足以上约束。
 
-验收结果：
-
-- active host 日志直接调用 spdlog；只在需要字符串值时使用 spdlog bundled `fmt::format`，不再使用 `std::format` 或 iostream 打印日志。
-- `.clangd` 只指向 ignored `build/compile_commands.json`，SDK、toolchain、include 和语言标准由 xmake 生成。
-- VS clangd 对 `RTOW/main.cpp` 和 `core/src/render_target.cpp` 自动读取数据库，均完成 0-error check。
-- 默认 Release `xmake build -v rtow` 成功，`git diff --check` 通过。
-
 ## 里程碑路线
 
 | 里程碑 | 状态 | 结果/目标 |
@@ -42,7 +35,8 @@
 | M0 清理与进度基线 | complete | 旧草稿已丢弃；指南和状态入口已建立 |
 | M1 构建基线与 Application 生命周期 | complete | 默认构建恢复；Application 地址稳定，支持部分失败清理与正确 teardown |
 | M2 底层资源 RAII | complete | C++23 Result + active handle RAII + mapped PBO guard |
-| M2.1 日志格式化与 clangd | complete | 日志统一到 spdlog；字符串用 bundled fmt；clangd 接入 xmake compile database |
+| M2.1 日志与 clangd | complete | 日志入口统一到 spdlog；clangd 接入 xmake compile database；普通字符串误用 bundled fmt 由 M2.2 纠正 |
+| M2.2 格式化边界修正 | complete | spdlog 只负责日志；非日志字符串使用 `std::format` |
 | M3 Active/legacy 边界 | pending | 整理失效教程源码、构建目标与路径大小写 |
 
 ## 最近验证
@@ -60,6 +54,9 @@
 - `2026-08-14`（M2.1）：`xmake project -k compile_commands --lsp=clangd build` 生成 ignored compilation database；`.clangd` 自动加载成功。
 - `2026-08-14`（M2.1）：VS clangd 22.1.3 检查 `RTOW/main.cpp` 与 `core/src/render_target.cpp`，均为 0 errors。
 - `2026-08-14`（M2.1）：`xmake build -v rtow` 成功；active host 日志扫描和 `git diff --check` 通过。
+- `2026-08-14`（M2.2）：非 third-party 源码不再包含 `spdlog/fmt`、`fmt::format`、`std::cout` 或 `std::cerr`；六处 `std::format` 均用于非日志字符串。
+- `2026-08-14`（M2.2）：`xmake build -v rtow` 成功；clangd 对 `RTOW/main.cpp` 以及 Application/RayTracer 修改行检查均为 0 errors；`git diff --check` 通过。
+- clangd 整文件 `--check` Application 时会在内置 ExtractFunction 动作上报 3 个 break/continue 提取错误；AST 构建、源码诊断和修改行检查正常，不是编译错误。
 
 ## 已知 blocker
 

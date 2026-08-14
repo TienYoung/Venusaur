@@ -228,7 +228,7 @@ xmake run rtow
 
 最后一条构建数据库命令用于 clangd；它生成 ignored `build/compile_commands.json`。`.clangd` 只定位该数据库，不再重复硬编码 CUDA/OptiX/MSVC 路径。configure、toolchain 或 include 变更后应重新运行该命令。NVRTC 运行时编译的 `.cu` 不属于当前 host compilation database。
 
-日志约定：直接记录的参数交给 spdlog 格式化；仅在 API 需要一个字符串值时使用 spdlog bundled `fmt::format`。active host 代码不再混用 `std::format`、`std::cout` 或 `std::cerr` 记日志。
+日志约定：日志参数直接交给 `spdlog::*` 格式化，不先生成中间字符串；非日志 API 需要字符串值时使用 C++ `std::format`。因此普通字符串处理不依赖 spdlog bundled fmt，active host 代码也不使用 `std::cout` 或 `std::cerr` 记日志。
 
 M0 恢复到 `667ed24` 后，正常 C++20 build 曾因 Proxy/Clang 组合失败。M1 删除未产生实际解耦价值的 Proxy 依赖后恢复构建；M2 将 host C++ 升到 C++23 以使用 `std::expected`（当前 clang-cl 实际采用 `-std:c++latest`），NVRTC device source 仍使用 C++20。默认 Release 已在同一工具链上完成全量编译和链接，审计宏 workaround 从未进入正式配置。
 
@@ -263,7 +263,8 @@ M0 恢复到 `667ed24` 后，正常 C++20 build 曾因 Proxy/Clang 组合失败�
 | 2025 `667ed24` | Application 接管 run loop 与 GLFW callbacks |
 | 2026 M1（本指南所在提交） | 移除无效 Proxy；稳定 Application 地址、部分构造与 teardown；恢复默认构建 |
 | 2026 M2（本指南所在提交） | C++23 Result；active GL/CUDA/OptiX RAII；mapped PBO guard；weak renderer callback |
-| 2026 M2.1（本指南所在提交） | 日志统一到 spdlog/bundled fmt；clangd 接入 xmake compilation database |
+| 2026 M2.1 `6c96d42` | 日志入口统一到 spdlog；clangd 接入 xmake compilation database |
+| 2026 M2.2（本指南所在提交） | 修正格式化边界：非日志字符串使用 `std::format`，不依赖 spdlog |
 
 `e76db5e` 一次修改了 49 个非 third-party 源/构建文件（约 `2701+ / 6525-`），提交正文却只有 “Uses xmake”。这类没有迁移说明的大提交，而非复杂 merge 图，是今天难以还原设计意图的主要原因。
 

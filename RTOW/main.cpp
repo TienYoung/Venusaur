@@ -1,6 +1,7 @@
 #include <array>
 #include <cstdlib>
 #include <filesystem>
+#include <format>
 #include <fstream>
 #include <stdexcept>
 #include <string>
@@ -10,7 +11,6 @@
 #include <nvrtc.h>
 
 #include <spdlog/spdlog.h>
-#include <spdlog/fmt/fmt.h>
 
 #include <venusaur/application.hpp>
 
@@ -58,9 +58,9 @@ int run() {
     auto cuda_path = std::getenv("CUDA_PATH");
     auto optix_install_dir = std::getenv("OPTIX_INSTALL_DIR");
 #endif
-    auto cudaInclude = fmt::format("-I{}/include", cuda_path);
-    auto ccclInclude = fmt::format("-I{}/include/cccl", cuda_path);
-    auto optixInclude = fmt::format("-I{}/include", optix_install_dir);
+    auto cudaInclude = std::format("-I{}/include", cuda_path);
+    auto ccclInclude = std::format("-I{}/include/cccl", cuda_path);
+    auto optixInclude = std::format("-I{}/include", optix_install_dir);
 
     std::array options = {
         "-std=c++20",

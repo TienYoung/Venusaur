@@ -1,5 +1,6 @@
 #include <venusaur/ray_tracer.hpp>
 
+#include <format>
 #include <string_view>
 #include <utility>
 
@@ -9,7 +10,6 @@
 #include <optix_stubs.h>
 
 #include <spdlog/spdlog.h>
-#include <spdlog/fmt/fmt.h>
 
 #include <venusaur/exception.hpp>
 
@@ -241,7 +241,7 @@ Result<void> RayTracer::render(std::shared_ptr<RenderTarget> render_target) {
         return std::unexpected(Error{
             .domain = ErrorDomain::application,
             .operation = "RayTracer::render",
-            .message = fmt::format("Launch parameter size {} exceeds allocation capacity {}",
+            .message = std::format("Launch parameter size {} exceeds allocation capacity {}",
                                    params->size(),
                                    m_paramsCapacity),
         });
