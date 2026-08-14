@@ -4,16 +4,19 @@
 
 #include <array>
 #include <memory>
+#include <span>
+#include <string_view>
+#include <utility>
+#include <vector>
 
-#include <optix_function_table_definition.h>
 #include <optix_stubs.h>
 
 #include <glm/glm.hpp>
 
-#include <venusaur/exception.hpp>
-
+#include <venusaur/gpu_resources.hpp>
 #include <venusaur/ray_tracer.hpp>
 #include <venusaur/render_target.hpp>
+#include <venusaur/result.hpp>
 
 #include "cuda/metal.h"
 
@@ -31,9 +34,37 @@ private:
     };
 
 public:
-    MetalRenderer(std::shared_ptr<venusaur::RayTracer> ray_tracer, const std::vector<char>& optixIR) {
+    [[nodiscard]] static venusaur::Result<std::shared_ptr<MetalRenderer>>
+    create(std::shared_ptr<venusaur::RayTracer> ray_tracer, const std::vector<char>& optixIR) {
+        auto renderer = std::shared_ptr<MetalRenderer>(new MetalRenderer{});
+        if (auto result = renderer->initialize(ray_tracer, optixIR); !result) {
+            return std::unexpected(std::move(result.error()));
+        }
+
+        std::weak_ptr<MetalRenderer> weakRenderer = renderer;
         ray_tracer->setRenderCallback(
-            [this](uchar4* image, uint32_t width, uint32_t height) { return this->setupParams(image, width, height); });
+            [weakRenderer](uchar4* image,
+                           uint32_t width,
+                           uint32_t height) -> venusaur::Result<std::span<const std::byte>> {
+                auto locked = weakRenderer.lock();
+                if (!locked) {
+                    return std::unexpected(venusaur::Error{
+                        .domain = venusaur::ErrorDomain::application,
+                        .operation = "MetalRenderer::setupParams",
+                        .message = "Metal renderer no longer exists",
+                    });
+                }
+                return locked->setupParams(image, width, height);
+            });
+
+        return renderer;
+    }
+
+private:
+    MetalRenderer() = default;
+
+    [[nodiscard]] venusaur::Result<void> initialize(std::shared_ptr<venusaur::RayTracer> ray_tracer,
+                                                    const std::vector<char>& optixIR) {
 
         auto accelBuildOption = OptixAccelBuildOptions{.buildFlags = OPTIX_BUILD_FLAG_NONE,
                                                        .operation = OPTIX_BUILD_OPERATION_BUILD,
@@ -65,24 +96,47 @@ public:
             3,
         };
 
-        CUdeviceptr d_center_buffer;
-        CUDA_CHECK(cudaMalloc(reinterpret_cast<void**>(&d_center_buffer), sizeof(float3) * sphereCenter.size()));
-        CUDA_CHECK(cudaMemcpy(reinterpret_cast<void*>(d_center_buffer),
-                              sphereCenter.data(),
-                              sizeof(sphereCenter),
-                              cudaMemcpyHostToDevice));
+        auto centerBuffer = venusaur::allocateDeviceBuffer(sizeof(sphereCenter));
+        if (!centerBuffer) {
+            return std::unexpected(std::move(centerBuffer.error()));
+        }
+        if (auto result = venusaur::checkCuda(cudaMemcpy(reinterpret_cast<void*>(centerBuffer->get()),
+                                                         sphereCenter.data(),
+                                                         sizeof(sphereCenter),
+                                                         cudaMemcpyHostToDevice),
+                                               "copy sphere centers");
+            !result) {
+            return result;
+        }
 
-        CUdeviceptr d_radius_buffer;
-        CUDA_CHECK(cudaMalloc(reinterpret_cast<void**>(&d_radius_buffer), sizeof(float) * sphereRadius.size()));
-        CUDA_CHECK(cudaMemcpy(reinterpret_cast<void*>(d_radius_buffer),
-                              sphereRadius.data(),
-                              sizeof(sphereRadius),
-                              cudaMemcpyHostToDevice));
+        auto radiusBuffer = venusaur::allocateDeviceBuffer(sizeof(sphereRadius));
+        if (!radiusBuffer) {
+            return std::unexpected(std::move(radiusBuffer.error()));
+        }
+        if (auto result = venusaur::checkCuda(cudaMemcpy(reinterpret_cast<void*>(radiusBuffer->get()),
+                                                         sphereRadius.data(),
+                                                         sizeof(sphereRadius),
+                                                         cudaMemcpyHostToDevice),
+                                               "copy sphere radii");
+            !result) {
+            return result;
+        }
 
-        CUdeviceptr d_sbt_index_buffer;
-        CUDA_CHECK(cudaMalloc(reinterpret_cast<void**>(&d_sbt_index_buffer), sizeof(indices)));
-        CUDA_CHECK(cudaMemcpy(
-            reinterpret_cast<void*>(d_sbt_index_buffer), indices.data(), sizeof(indices), cudaMemcpyHostToDevice));
+        auto sbtIndexBuffer = venusaur::allocateDeviceBuffer(sizeof(indices));
+        if (!sbtIndexBuffer) {
+            return std::unexpected(std::move(sbtIndexBuffer.error()));
+        }
+        if (auto result = venusaur::checkCuda(cudaMemcpy(reinterpret_cast<void*>(sbtIndexBuffer->get()),
+                                                         indices.data(),
+                                                         sizeof(indices),
+                                                         cudaMemcpyHostToDevice),
+                                               "copy SBT indices");
+            !result) {
+            return result;
+        }
+
+        CUdeviceptr centerPointer = centerBuffer->get();
+        CUdeviceptr radiusPointer = radiusBuffer->get();
 
         unsigned int sphereInputFlags[] = {
             OPTIX_GEOMETRY_FLAG_DISABLE_ANYHIT,
@@ -92,25 +146,25 @@ public:
         };
         OptixBuildInput sphereInput = {.type = OPTIX_BUILD_INPUT_TYPE_SPHERES,
                                        .sphereArray = {
-                                           .vertexBuffers = &d_center_buffer,
+                                           .vertexBuffers = &centerPointer,
                                            .vertexStrideInBytes = sizeof(float3),
                                            .numVertices = sphereCenter.size(),
-                                           .radiusBuffers = &d_radius_buffer,
+                                           .radiusBuffers = &radiusPointer,
                                            .radiusStrideInBytes = sizeof(float),
                                            .singleRadius = false,
                                            .flags = sphereInputFlags,
                                            .numSbtRecords = indices.size(),
-                                           .sbtIndexOffsetBuffer = d_sbt_index_buffer,
+                                           .sbtIndexOffsetBuffer = sbtIndexBuffer->get(),
                                            .sbtIndexOffsetSizeInBytes = sizeof(int),
                                            .sbtIndexOffsetStrideInBytes = 0,
                                            .primitiveIndexOffset = 0,
                                        }};
 
-        m_gasHandle = ray_tracer->createAccelBuffer(accelBuildOption, sphereInput);
-
-        CUDA_CHECK(cudaFree(reinterpret_cast<void*>(d_center_buffer)));
-        CUDA_CHECK(cudaFree(reinterpret_cast<void*>(d_radius_buffer)));
-        CUDA_CHECK(cudaFree(reinterpret_cast<void*>(d_sbt_index_buffer)));
+        auto gasHandle = ray_tracer->createAccelBuffer(accelBuildOption, sphereInput);
+        if (!gasHandle) {
+            return std::unexpected(std::move(gasHandle.error()));
+        }
+        m_gasHandle = *gasHandle;
 
         OptixModuleCompileOptions moduleCompileOptions = {
             .maxRegisterCount = OPTIX_COMPILE_DEFAULT_MAX_REGISTER_COUNT,
@@ -140,14 +194,20 @@ public:
 
         char log[2048];
         size_t log_length = sizeof(log);
-        OPTIX_CHECK_LOG(optixModuleCreate(ray_tracer->getOptixContext(),
-                                          &moduleCompileOptions,
-                                          &pipelineCompileOptions,
-                                          optixIR.data(),
-                                          optixIR.size(),
-                                          log,
-                                          &log_length,
-                                          &module));
+        const OptixResult moduleResult = optixModuleCreate(ray_tracer->getOptixContext(),
+                                                           &moduleCompileOptions,
+                                                           &pipelineCompileOptions,
+                                                           optixIR.data(),
+                                                           optixIR.size(),
+                                                           log,
+                                                           &log_length,
+                                                           &module);
+        venusaur::OptixModuleHandle moduleOwner{module};
+        if (auto result = venusaur::checkOptix(
+                moduleResult, "optixModuleCreate", std::string_view(log, log_length));
+            !result) {
+            return result;
+        }
 
         OptixModule sphereModuleIS = nullptr;
         OptixBuiltinISOptions sphereISOptions = {
@@ -156,11 +216,15 @@ public:
             .buildFlags = OPTIX_BUILD_FLAG_NONE,
             .curveEndcapFlags = OPTIX_CURVE_ENDCAP_DEFAULT,
         };
-        OPTIX_CHECK_LOG(optixBuiltinISModuleGet(ray_tracer->getOptixContext(),
-                                                &moduleCompileOptions,
-                                                &pipelineCompileOptions,
-                                                &sphereISOptions,
-                                                &sphereModuleIS));
+        const OptixResult builtinResult = optixBuiltinISModuleGet(ray_tracer->getOptixContext(),
+                                                                  &moduleCompileOptions,
+                                                                  &pipelineCompileOptions,
+                                                                  &sphereISOptions,
+                                                                  &sphereModuleIS);
+        venusaur::OptixModuleHandle sphereModuleOwner{sphereModuleIS};
+        if (auto result = venusaur::checkOptix(builtinResult, "optixBuiltinISModuleGet"); !result) {
+            return result;
+        }
 
         std::array programGroupDesc = {
             OptixProgramGroupDesc{.kind = OPTIX_PROGRAM_GROUP_KIND_RAYGEN,
@@ -206,16 +270,25 @@ public:
         OptixProgramGroupOptions programGroupOptions = {
             .payloadType = nullptr,
         };
+        std::array<venusaur::OptixProgramGroupHandle, 4> programGroupOwners;
         {
             char log[2048];
             size_t log_length = sizeof(log);
-            OPTIX_CHECK_LOG(optixProgramGroupCreate(ray_tracer->getOptixContext(),
-                                                    programGroupDesc.data(),
-                                                    programGroupDesc.size(),
-                                                    &programGroupOptions,
-                                                    log,
-                                                    &log_length,
-                                                    programGroup.array.data()));
+            const OptixResult groupResult = optixProgramGroupCreate(ray_tracer->getOptixContext(),
+                                                                     programGroupDesc.data(),
+                                                                     programGroupDesc.size(),
+                                                                     &programGroupOptions,
+                                                                     log,
+                                                                     &log_length,
+                                                                     programGroup.array.data());
+            for (std::size_t index = 0; index < programGroup.array.size(); ++index) {
+                programGroupOwners[index].reset(programGroup.array[index]);
+            }
+            if (auto result = venusaur::checkOptix(
+                    groupResult, "optixProgramGroupCreate", std::string_view(log, log_length));
+                !result) {
+                return result;
+            }
         }
 
         OptixPipelineLinkOptions pipelineLinkOptions = {
@@ -226,23 +299,48 @@ public:
             .maxTraversableGraphDepth = 0,
         };
 
-        ray_tracer->setupPipeline(pipelineCompileOptions, pipelineLinkOptions, programGroup.array);
+        if (auto result = ray_tracer->setupPipeline(pipelineCompileOptions, pipelineLinkOptions, programGroup.array);
+            !result) {
+            return result;
+        }
 
-        CUdeviceptr d_raygenRecord = NULL;
-        CUDA_CHECK(cudaMalloc(reinterpret_cast<void**>(&d_raygenRecord), sizeof(RayGenSbtRecord)));
+        auto raygenRecordBuffer = venusaur::allocateDeviceBuffer(sizeof(RayGenSbtRecord));
+        if (!raygenRecordBuffer) {
+            return std::unexpected(std::move(raygenRecordBuffer.error()));
+        }
         RayGenSbtRecord raygenRecord = {};
-        OPTIX_CHECK(optixSbtRecordPackHeader(programGroup.raygen, &raygenRecord));
-        CUDA_CHECK(cudaMemcpy(
-            reinterpret_cast<void*>(d_raygenRecord), &raygenRecord, sizeof(RayGenSbtRecord), cudaMemcpyHostToDevice));
-        OPTIX_CHECK(optixProgramGroupDestroy(programGroup.raygen));
+        if (auto result = venusaur::checkOptix(optixSbtRecordPackHeader(programGroup.raygen, &raygenRecord),
+                                               "pack raygen SBT record");
+            !result) {
+            return result;
+        }
+        if (auto result = venusaur::checkCuda(cudaMemcpy(reinterpret_cast<void*>(raygenRecordBuffer->get()),
+                                                         &raygenRecord,
+                                                         sizeof(RayGenSbtRecord),
+                                                         cudaMemcpyHostToDevice),
+                                               "copy raygen SBT record");
+            !result) {
+            return result;
+        }
 
-        CUdeviceptr d_missRecordBase = NULL;
-        CUDA_CHECK(cudaMalloc(reinterpret_cast<void**>(&d_missRecordBase), sizeof(MissSbtRecord)));
+        auto missRecordBuffer = venusaur::allocateDeviceBuffer(sizeof(MissSbtRecord));
+        if (!missRecordBuffer) {
+            return std::unexpected(std::move(missRecordBuffer.error()));
+        }
         MissSbtRecord missRecord = {};
-        OPTIX_CHECK(optixSbtRecordPackHeader(programGroup.miss, &missRecord));
-        CUDA_CHECK(cudaMemcpy(
-            reinterpret_cast<void*>(d_missRecordBase), &missRecord, sizeof(MissSbtRecord), cudaMemcpyHostToDevice));
-        OPTIX_CHECK(optixProgramGroupDestroy(programGroup.miss));
+        if (auto result = venusaur::checkOptix(optixSbtRecordPackHeader(programGroup.miss, &missRecord),
+                                               "pack miss SBT record");
+            !result) {
+            return result;
+        }
+        if (auto result = venusaur::checkCuda(cudaMemcpy(reinterpret_cast<void*>(missRecordBuffer->get()),
+                                                         &missRecord,
+                                                         sizeof(MissSbtRecord),
+                                                         cudaMemcpyHostToDevice),
+                                               "copy miss SBT record");
+            !result) {
+            return result;
+        }
 
         std::array hitGroupRecords = {
             HitGroupSbtRecord{
@@ -279,46 +377,52 @@ public:
             },
         };
 
-        OPTIX_CHECK(optixSbtRecordPackHeader(programGroup.hitgroup_lambertian, hitGroupRecords[0].header));
-        OPTIX_CHECK(optixSbtRecordPackHeader(programGroup.hitgroup_lambertian, hitGroupRecords[1].header));
-        OPTIX_CHECK(optixSbtRecordPackHeader(programGroup.hitgroup_metal, hitGroupRecords[2].header));
-        OPTIX_CHECK(optixSbtRecordPackHeader(programGroup.hitgroup_metal, hitGroupRecords[3].header));
+        for (std::size_t index = 0; index < hitGroupRecords.size(); ++index) {
+            const OptixProgramGroup group = index < 2 ? programGroup.hitgroup_lambertian : programGroup.hitgroup_metal;
+            if (auto result = venusaur::checkOptix(optixSbtRecordPackHeader(group, hitGroupRecords[index].header),
+                                                   "pack hitgroup SBT record");
+                !result) {
+                return result;
+            }
+        }
 
-        OPTIX_CHECK(optixProgramGroupDestroy(programGroup.hitgroup_lambertian));
-        OPTIX_CHECK(optixProgramGroupDestroy(programGroup.hitgroup_metal));
-
-        CUdeviceptr d_hitGroupRecordBase = NULL;
-        CUDA_CHECK(cudaMalloc(reinterpret_cast<void**>(&d_hitGroupRecordBase), sizeof(hitGroupRecords)));
-        CUDA_CHECK(cudaMemcpy(reinterpret_cast<void*>(d_hitGroupRecordBase),
-                              hitGroupRecords.data(),
-                              sizeof(hitGroupRecords),
-                              cudaMemcpyHostToDevice));
-
-        OPTIX_CHECK(optixModuleDestroy(module));
+        auto hitgroupRecordBuffer = venusaur::allocateDeviceBuffer(sizeof(hitGroupRecords));
+        if (!hitgroupRecordBuffer) {
+            return std::unexpected(std::move(hitgroupRecordBuffer.error()));
+        }
+        if (auto result = venusaur::checkCuda(cudaMemcpy(reinterpret_cast<void*>(hitgroupRecordBuffer->get()),
+                                                         hitGroupRecords.data(),
+                                                         sizeof(hitGroupRecords),
+                                                         cudaMemcpyHostToDevice),
+                                               "copy hitgroup SBT records");
+            !result) {
+            return result;
+        }
 
         // char location[2048] = "";
         // OPTIX_CHECK(optixDeviceContextGetCacheLocation(m_context, location, 2048));
         // std::cout << "location:" << location << std::endl;
 
         ray_tracer->setupShaderBindingTable({
-            .raygenRecord = d_raygenRecord,
-            .missRecordBase = d_missRecordBase,
             .missRecordStrideInBytes = sizeof(MissSbtRecord),
             .missRecordCount = 1,
-            .hitgroupRecordBase = d_hitGroupRecordBase,
             .hitgroupRecordStrideInBytes = sizeof(HitGroupSbtRecord),
             .hitgroupRecordCount = hitGroupRecords.size(),
             .callablesRecordBase = NULL,
             .callablesRecordStrideInBytes = 0,
             .callablesRecordCount = 0,
-        });
+        },
+                                            std::move(*raygenRecordBuffer),
+                                            std::move(*missRecordBuffer),
+                                            std::move(*hitgroupRecordBuffer));
 
-        ray_tracer->mallocParamsOnDevice(sizeof(MetalParams));
+        if (auto result = ray_tracer->allocateParams(sizeof(MetalParams)); !result) {
+            return result;
+        }
+
+        return {};
     }
 
-    ~MetalRenderer() {}
-
-private:
     typedef venusaur::RayTracer::SbtRecord<void> RayGenSbtRecord;
     typedef venusaur::RayTracer::SbtRecord<void> MissSbtRecord;
     typedef venusaur::RayTracer::SbtRecord<Material> HitGroupSbtRecord;
@@ -329,7 +433,7 @@ private:
 
     MetalParams m_params;
 
-    std::span<const std::byte> setupParams(uchar4* image, uint32_t width, uint32_t height) {
+    venusaur::Result<std::span<const std::byte>> setupParams(uchar4* image, uint32_t width, uint32_t height) {
         int image_width = width;
         int image_height = height;
 

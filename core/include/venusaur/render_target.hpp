@@ -1,31 +1,35 @@
 #pragma once
 
 #include <cstdint>
+#include <memory>
 
-#include <GL/gl3w.h>
-
-#include <cuda.h>
-#include <cuda_gl_interop.h>
+#include <venusaur/gpu_resources.hpp>
+#include <venusaur/result.hpp>
 
 namespace venusaur {
 class RenderTarget {
 public:
-    RenderTarget(uint32_t width, uint32_t height);
-    ~RenderTarget();
+    struct Mapping {
+        uchar4* image = nullptr;
+        ScopedGraphicsMap guard;
+    };
 
-    uchar4* map(CUstream stream);
-    void unmap(CUstream stream);
+    [[nodiscard]] static Result<std::shared_ptr<RenderTarget>> create(uint32_t width, uint32_t height);
+
+    [[nodiscard]] Result<Mapping> map(CUstream stream);
+    [[nodiscard]] Result<void> unmap(Mapping&& mapping);
 
     uint32_t getWidth() const { return m_width; }
     uint32_t getHeight() const { return m_height; }
 
 private:
+    RenderTarget() = default;
+
     uint32_t m_width = 0;
     uint32_t m_height = 0;
 
-    GLuint m_tex = 0;
-    GLuint m_pbo = 0;
-
-    cudaGraphicsResource* m_gfxResource = nullptr;
+    GlTexture m_texture;
+    GlBuffer m_pixelBuffer;
+    CudaGraphicsRegistration m_cudaRegistration;
 };
 } // namespace venusaur

@@ -1,80 +1,73 @@
 #include <venusaur/rasterizer.hpp>
 
-#include <spdlog/spdlog.h>
+#include <memory>
+#include <string>
 #include <string_view>
+#include <utility>
+
+#include <spdlog/spdlog.h>
 
 namespace venusaur {
 namespace {
-GLuint createGLShader(std::string_view source, GLuint shader_type) {
-    GLuint shader = glCreateShader(shader_type);
+Result<GlShader> createGLShader(std::string_view source, GLuint shader_type) {
+    GlShader shader{glCreateShader(shader_type)};
     const GLchar* source_data = reinterpret_cast<const GLchar*>(source.data());
-    glShaderSource(shader, 1, &source_data, nullptr);
-    glCompileShader(shader);
+    glShaderSource(shader.get(), 1, &source_data, nullptr);
+    glCompileShader(shader.get());
 
     GLint is_compiled = 0;
-    glGetShaderiv(shader, GL_COMPILE_STATUS, &is_compiled);
+    glGetShaderiv(shader.get(), GL_COMPILE_STATUS, &is_compiled);
     if (is_compiled == GL_FALSE) {
         GLint log_length = 0;
-        glGetShaderiv(shader, GL_INFO_LOG_LENGTH, &log_length);
+        glGetShaderiv(shader.get(), GL_INFO_LOG_LENGTH, &log_length);
 
         std::string info_log(log_length, '\0');
-        glGetShaderInfoLog(shader, log_length, nullptr, info_log.data());
-
-        spdlog::error("[Shader Compile Error] {}", info_log);
-        glDeleteShader(shader);
-
-        return 0;
+        glGetShaderInfoLog(shader.get(), log_length, nullptr, info_log.data());
+        return std::unexpected(Error{
+            .domain = ErrorDomain::opengl,
+            .operation = "glCompileShader",
+            .message = std::move(info_log),
+        });
     }
 
     return shader;
 }
 
-GLuint createGLProgram(std::string_view vert_src, std::string_view frag_src) {
-    GLuint vert_shader = createGLShader(vert_src, GL_VERTEX_SHADER);
-    if (vert_shader == 0) {
-        return 0;
+Result<GlProgram> createGLProgram(std::string_view vert_src, std::string_view frag_src) {
+    auto vertShader = createGLShader(vert_src, GL_VERTEX_SHADER);
+    if (!vertShader) {
+        return std::unexpected(std::move(vertShader.error()));
     }
 
-    GLuint frag_shader = createGLShader(frag_src, GL_FRAGMENT_SHADER);
-    if (frag_shader == 0) {
-        glDeleteShader(vert_shader);
-        return 0;
+    auto fragShader = createGLShader(frag_src, GL_FRAGMENT_SHADER);
+    if (!fragShader) {
+        return std::unexpected(std::move(fragShader.error()));
     }
 
-    GLuint program = glCreateProgram();
-    glAttachShader(program, vert_shader);
-    glAttachShader(program, frag_shader);
-    glLinkProgram(program);
+    GlProgram program{glCreateProgram()};
+    glAttachShader(program.get(), vertShader->get());
+    glAttachShader(program.get(), fragShader->get());
+    glLinkProgram(program.get());
 
     GLint is_linked = 0;
-    glGetProgramiv(program, GL_LINK_STATUS, &is_linked);
+    glGetProgramiv(program.get(), GL_LINK_STATUS, &is_linked);
     if (is_linked == GL_FALSE) {
         GLint log_length = 0;
-        glGetProgramiv(program, GL_INFO_LOG_LENGTH, &log_length);
+        glGetProgramiv(program.get(), GL_INFO_LOG_LENGTH, &log_length);
 
         std::string info_log(log_length, '\0');
-        glGetProgramInfoLog(program, log_length, nullptr, info_log.data());
-
-        spdlog::error("[Program Link Error] {}", info_log);
-        glDeleteProgram(program);
-        glDeleteShader(vert_shader);
-        glDeleteShader(frag_shader);
-
-        return 0;
+        glGetProgramInfoLog(program.get(), log_length, nullptr, info_log.data());
+        return std::unexpected(Error{
+            .domain = ErrorDomain::opengl,
+            .operation = "glLinkProgram",
+            .message = std::move(info_log),
+        });
     }
 
-    glDetachShader(program, vert_shader);
-    glDetachShader(program, frag_shader);
+    glDetachShader(program.get(), vertShader->get());
+    glDetachShader(program.get(), fragShader->get());
 
     return program;
-}
-
-GLint getGLUniformLocation(GLuint program, std::string_view name) {
-    GLint loc = glGetUniformLocation(program, name.data());
-    if (loc == -1) {
-        throw std::runtime_error(std::format("Failed to get uniform loc for '{}'", name).c_str());
-    }
-    return loc;
 }
 
 constexpr std::string_view kVertexSource = R"(
@@ -181,10 +174,16 @@ void APIENTRY messageCallback(GLenum source,
 }
 } // anonymous namespace
 
-Rasterizer::Rasterizer() {
+Result<std::shared_ptr<Rasterizer>> Rasterizer::create() {
     if (gl3wInit()) {
-        throw std::runtime_error("Failed to initialize GL");
+        return std::unexpected(Error{
+            .domain = ErrorDomain::opengl,
+            .operation = "gl3wInit",
+            .message = "Failed to initialize OpenGL function loading",
+        });
     }
+
+    auto rasterizer = std::shared_ptr<Rasterizer>(new Rasterizer{});
 
     glEnable(GL_DEBUG_OUTPUT);
     glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
@@ -206,17 +205,21 @@ Rasterizer::Rasterizer() {
         break;
     }
 
-    // Create program
-    m_program = createGLProgram(kVertexSource, kFragmentSource);
-    glUseProgram(m_program);
+    auto program = createGLProgram(kVertexSource, kFragmentSource);
+    if (!program) {
+        return std::unexpected(std::move(program.error()));
+    }
+    rasterizer->m_program = std::move(*program);
+    glUseProgram(rasterizer->m_program.get());
 
-    // Create VAO
-    glCreateVertexArrays(1, &m_vao);
-}
+    GLuint vertexArray = 0;
+    glCreateVertexArrays(1, &vertexArray);
+    rasterizer->m_vertexArray.reset(vertexArray);
+    if (auto result = checkGl("create rasterizer state"); !result) {
+        return std::unexpected(std::move(result.error()));
+    }
 
-Rasterizer::~Rasterizer() {
-    glDeleteProgram(m_program);
-    glDeleteVertexArrays(1, &m_vao);
+    return rasterizer;
 }
 
 void Rasterizer::render(GLuint width, GLuint height) {
@@ -227,7 +230,7 @@ void Rasterizer::render(GLuint width, GLuint height) {
     glClearNamedFramebufferfv(0, GL_COLOR, 0, clearColor);
     glClearNamedFramebufferfv(0, GL_DEPTH, 0, &clearDepth);
 
-    glBindVertexArray(m_vao);
+    glBindVertexArray(m_vertexArray.get());
     glDrawArrays(GL_TRIANGLES, 0, 3);
 }
 } // namespace venusaur

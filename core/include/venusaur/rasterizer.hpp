@@ -1,16 +1,21 @@
 #pragma once
 
-#include <GL/gl3w.h>
+#include <memory>
+
+#include <venusaur/gpu_resources.hpp>
+#include <venusaur/result.hpp>
 
 namespace venusaur {
 class Rasterizer {
 public:
-    Rasterizer();
-    ~Rasterizer();
+    [[nodiscard]] static Result<std::shared_ptr<Rasterizer>> create();
+
     void render(GLuint width, GLuint height);
 
 private:
-    GLuint m_program = 0;
-    GLuint m_vao = 0;
+    Rasterizer() = default;
+
+    GlProgram m_program;
+    GlVertexArray m_vertexArray;
 };
 } // namespace venusaur

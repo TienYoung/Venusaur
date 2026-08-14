@@ -1,6 +1,13 @@
+#include <array>
+#include <cstdlib>
 #include <filesystem>
+#include <format>
 #include <fstream>
+#include <iostream>
 #include <stdexcept>
+#include <string>
+#include <utility>
+#include <vector>
 
 #include <nvrtc.h>
 
@@ -73,10 +80,20 @@ int run() {
     NVRTC_SAFE_CALL(nvrtcGetOptiXIR(program, optixir.data()));
     NVRTC_SAFE_CALL(nvrtcDestroyProgram(&program));
 
-    auto ray_tracer = std::make_shared<venusaur::RayTracer>();
+    auto rayTracerResult = venusaur::RayTracer::create();
+    if (!rayTracerResult) {
+        spdlog::critical("{}", venusaur::describe(rayTracerResult.error()));
+        return EXIT_FAILURE;
+    }
+    auto ray_tracer = std::move(*rayTracerResult);
     app->SetRenderer(ray_tracer);
 
-    auto renderer = std::make_shared<rtow::MetalRenderer>(ray_tracer, optixir);
+    auto rendererResult = rtow::MetalRenderer::create(ray_tracer, optixir);
+    if (!rendererResult) {
+        spdlog::critical("{}", venusaur::describe(rendererResult.error()));
+        return EXIT_FAILURE;
+    }
+    auto renderer = std::move(*rendererResult);
 
     app->run();
 

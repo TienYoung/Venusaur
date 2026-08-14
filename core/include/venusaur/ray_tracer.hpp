@@ -8,34 +8,37 @@
 
 #include <optix.h>
 
-#include <venusaur/exception.hpp>
+#include <venusaur/gpu_resources.hpp>
 #include <venusaur/render_target.hpp>
+#include <venusaur/result.hpp>
 
 namespace venusaur {
 class RayTracer {
 public:
-    RayTracer();
-    ~RayTracer();
+    [[nodiscard]] static Result<std::shared_ptr<RayTracer>> create();
 
-    CUstream getCudaStream() const { return m_stream; }
-    OptixDeviceContext getOptixContext() const { return m_context; }
-    OptixPipeline getPipeline() const { return m_pipeline; }
+    CUstream getCudaStream() const { return m_stream.get(); }
+    OptixDeviceContext getOptixContext() const { return m_context.get(); }
+    OptixPipeline getPipeline() const { return m_pipeline.get(); }
 
-    void mallocParamsOnDevice(size_t size) { CUDA_CHECK(cudaMalloc(reinterpret_cast<void**>(&d_params), size)); }
+    [[nodiscard]] Result<void> allocateParams(std::size_t size);
 
-    void setupPipeline(const OptixPipelineCompileOptions& compile_options,
-                       const OptixPipelineLinkOptions& link_options,
-                       std::span<OptixProgramGroup> program_group);
+    [[nodiscard]] Result<void> setupPipeline(const OptixPipelineCompileOptions& compile_options,
+                                             const OptixPipelineLinkOptions& link_options,
+                                             std::span<OptixProgramGroup> program_group);
 
-    [[nodiscard]] OptixTraversableHandle createAccelBuffer(const OptixAccelBuildOptions& accel_build_options,
-                                                           const OptixBuildInput& build_input);
+    [[nodiscard]] Result<OptixTraversableHandle>
+    createAccelBuffer(const OptixAccelBuildOptions& accel_build_options, const OptixBuildInput& build_input);
 
-    void setupShaderBindingTable(OptixShaderBindingTable&& sbt) { m_sbt = sbt; };
+    void setupShaderBindingTable(OptixShaderBindingTable sbt,
+                                 CudaDeviceBuffer raygenRecord,
+                                 CudaDeviceBuffer missRecords,
+                                 CudaDeviceBuffer hitgroupRecords);
 
-    void render(std::shared_ptr<RenderTarget> render_target);
+    [[nodiscard]] Result<void> render(std::shared_ptr<RenderTarget> render_target);
 
     using SetupParamsCallback =
-        std::function<std::span<const std::byte>(uchar4* image, uint32_t width, uint32_t height)>;
+        std::function<Result<std::span<const std::byte>>(uchar4* image, uint32_t width, uint32_t height)>;
     void setRenderCallback(SetupParamsCallback callback) { m_setupParams = std::move(callback); }
 
     template <typename T> struct __align__(OPTIX_SBT_RECORD_ALIGNMENT) SbtRecord {
@@ -47,16 +50,21 @@ public:
         char header[OPTIX_SBT_RECORD_HEADER_SIZE];
     };
 
-protected:
-    CUstream m_stream = nullptr;
+private:
+    RayTracer() = default;
+    [[nodiscard]] Result<void> initialize();
 
-    OptixDeviceContext m_context = nullptr;
+    CudaStream m_stream;
+    OptixContext m_context;
+    OptixPipelineHandle m_pipeline;
 
-    OptixPipeline m_pipeline = nullptr;
+    CudaDeviceBuffer m_accelBuffer;
+    CudaDeviceBuffer m_params;
+    std::size_t m_paramsCapacity = 0;
 
-    CUdeviceptr d_accelBuffer = NULL;
-
-    CUdeviceptr d_params = NULL;
+    CudaDeviceBuffer m_raygenRecord;
+    CudaDeviceBuffer m_missRecords;
+    CudaDeviceBuffer m_hitgroupRecords;
 
     OptixShaderBindingTable m_sbt = {};
 

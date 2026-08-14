@@ -197,7 +197,6 @@ inline void optixCheckNoThrow( OptixResult res, const char* call, const char* fi
         catch( ... )
         {
         }
-        std::terminate();
     }
 }
 
@@ -238,7 +237,6 @@ inline void cudaCheckNoThrow( cudaError_t error, const char* call, const char* f
         catch( ... )
         {
         }
-        std::terminate();
     }
 }
 

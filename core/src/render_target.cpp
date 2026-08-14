@@ -1,46 +1,81 @@
 #include <venusaur/render_target.hpp>
 
-#include <venusaur/exception.hpp>
+#include <utility>
 
 namespace venusaur {
-RenderTarget::RenderTarget(uint32_t width, uint32_t height) : m_width(width), m_height(height) {
+Result<std::shared_ptr<RenderTarget>> RenderTarget::create(uint32_t width, uint32_t height) {
     if (gl3wInit()) {
-        throw std::runtime_error("Failed to initialize GL");
+        return std::unexpected(Error{
+            .domain = ErrorDomain::opengl,
+            .operation = "gl3wInit",
+            .message = "Failed to initialize OpenGL function loading",
+        });
     }
 
-    // Create Texture
-    glCreateTextures(GL_TEXTURE_2D, 1, &m_tex);
-    glTextureStorage2D(m_tex, 1, GL_RGBA8, m_width, m_height);
-    glTextureParameteri(m_tex, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-    glTextureParameteri(m_tex, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-    glTextureParameteri(m_tex, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-    glTextureParameteri(m_tex, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-    glBindTextureUnit(0, m_tex);
+    auto target = std::shared_ptr<RenderTarget>(new RenderTarget{});
+    target->m_width = width;
+    target->m_height = height;
 
-    // Create PBO
-    glCreateBuffers(1, &m_pbo);
-    glNamedBufferData(m_pbo, sizeof(uint8_t) * 4 * m_width * m_height, nullptr, GL_STREAM_DRAW);
+    GLuint texture = 0;
+    glCreateTextures(GL_TEXTURE_2D, 1, &texture);
+    target->m_texture.reset(texture);
+    glTextureStorage2D(texture, 1, GL_RGBA8, width, height);
+    glTextureParameteri(texture, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTextureParameteri(texture, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTextureParameteri(texture, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTextureParameteri(texture, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glBindTextureUnit(0, texture);
+    if (auto result = checkGl("create render target texture"); !result) {
+        return std::unexpected(std::move(result.error()));
+    }
 
-    CUDA_CHECK(cudaGraphicsGLRegisterBuffer(&m_gfxResource, m_pbo, cudaGraphicsMapFlagsWriteDiscard));
+    GLuint pixelBuffer = 0;
+    glCreateBuffers(1, &pixelBuffer);
+    target->m_pixelBuffer.reset(pixelBuffer);
+    glNamedBufferData(pixelBuffer, sizeof(uint8_t) * 4 * width * height, nullptr, GL_STREAM_DRAW);
+    if (auto result = checkGl("create render target pixel buffer"); !result) {
+        return std::unexpected(std::move(result.error()));
+    }
+
+    auto registration = registerCudaGraphicsBuffer(pixelBuffer);
+    if (!registration) {
+        return std::unexpected(std::move(registration.error()));
+    }
+    target->m_cudaRegistration = std::move(*registration);
+
+    return target;
 }
 
-RenderTarget::~RenderTarget() {
-    CUDA_CHECK(cudaGraphicsUnregisterResource(m_gfxResource));
-}
+Result<RenderTarget::Mapping> RenderTarget::map(CUstream stream) {
+    cudaGraphicsResource* resource = m_cudaRegistration.get();
+    const cudaError_t mapCode = cudaGraphicsMapResources(1, &resource, stream);
+    if (mapCode != cudaSuccess) {
+        return std::unexpected(cudaError(mapCode, "cudaGraphicsMapResources"));
+    }
 
-uchar4* RenderTarget::map(CUstream stream) {
+    ScopedGraphicsMap guard{GraphicsMapHandle{.resource = resource, .stream = stream}};
     uchar4* image = nullptr;
-    CUDA_CHECK(cudaGraphicsMapResources(1, &m_gfxResource, stream));
-    CUDA_CHECK(cudaGraphicsResourceGetMappedPointer(reinterpret_cast<void**>(&image), nullptr, m_gfxResource));
-    return image;
+    const cudaError_t pointerCode =
+        cudaGraphicsResourceGetMappedPointer(reinterpret_cast<void**>(&image), nullptr, resource);
+    if (pointerCode != cudaSuccess) {
+        return std::unexpected(cudaError(pointerCode, "cudaGraphicsResourceGetMappedPointer"));
+    }
+
+    return Mapping{.image = image, .guard = std::move(guard)};
 }
 
-void RenderTarget::unmap(CUstream stream) {
-    CUDA_CHECK(cudaGraphicsUnmapResources(1, &m_gfxResource, stream));
+Result<void> RenderTarget::unmap(Mapping&& mapping) {
+    GraphicsMapHandle handle = mapping.guard.release();
+    const cudaError_t unmapCode = cudaGraphicsUnmapResources(1, &handle.resource, handle.stream);
+    if (unmapCode != cudaSuccess) {
+        return std::unexpected(cudaError(unmapCode, "cudaGraphicsUnmapResources"));
+    }
 
-    glBindBuffer(GL_PIXEL_UNPACK_BUFFER, m_pbo);
+    glBindBuffer(GL_PIXEL_UNPACK_BUFFER, m_pixelBuffer.get());
     glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
-    glTextureSubImage2D(m_tex, 0, 0, 0, m_width, m_height, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+    glTextureSubImage2D(m_texture.get(), 0, 0, 0, m_width, m_height, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
     glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
+
+    return checkGl("upload render target texture");
 }
 } // namespace venusaur

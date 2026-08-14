@@ -1,7 +1,7 @@
 # Venusaur 项目维护指南
 
 > 这是一份面向后续维护者与代码审计者的“事实地图”，不是对当前实现的背书。
-> 快照日期：2026-08-13（America/Toronto）；主线：`Reconstruction`；历史审计基线：`667ed24922c3fdd29ff7ee0289f0eb036ecea281`；当前实现以本文件所在提交为准。
+> 快照日期：2026-08-14（America/Toronto）；主线：`Reconstruction`；历史审计基线：`667ed24922c3fdd29ff7ee0289f0eb036ecea281`；当前实现以本文件所在提交为准。
 > 当前里程碑、验证结果和唯一下一步见 [`PROJECT_STATUS.md`](PROJECT_STATUS.md)；新对话应先读状态文件，再按需查阅本指南。
 
 ## 1. 一页结论
@@ -24,7 +24,7 @@ Venusaur 历史上确实完成过一版 OptiX 的 *Ray Tracing in One Weekend*�
 2. 可恢复失败统一使用 Result Pattern，而不是在 `expected`、异常、`exit`、assert 之间混用。
 3. 业务与编排 class 以 Rule of Zero 为目标；资源释放集中在窄小的 RAII handle/deleter 中。
 
-问题在于重构仍处于中间态：M1 只稳定了应用层生命周期与构建基线，底层 GL/CUDA/OptiX 资源所有权仍跨对象分裂，`MetalRenderer` 实际只是配置器，大量旧文件也已失效。因此当前优先级仍是“稳定生命周期和源码边界”，不是继续增加材质或抽象层。
+问题在于重构仍处于中间态：M1 稳定了应用层生命周期与构建基线，M2 为 active GL/CUDA/OptiX handle 建立了 Result + RAII 基线；但 `MetalRenderer` 仍是配置器，Application 仍依赖具体 RayTracer，大量旧文件也已失效。因此当前优先级转为“声明 active/legacy 源码边界”，不是继续增加材质或抽象层。
 
 ## 2. 当前 HEAD 与已丢弃草稿分别想做什么
 
@@ -155,10 +155,10 @@ GPU 端 `__raygen__` 使用 `optixTraverse + optixInvoke` 循环反弹，因此 
 | 对象 | 当前拥有内容 | 主要问题 |
 |---|---|---|
 | `Application` | 内部 State 按顺序拥有 GLFW、window、RayTracer、RenderTarget、Rasterizer、ImGui | 已禁止 copy/move并修复应用层 teardown；仍直接依赖具体 RayTracer 且使用 shared ownership |
-| `RenderTarget` | texture、PBO、CUDA graphics registration | 只 unregister CUDA，未删除 GL texture/PBO；可被错误复制 |
-| `Rasterizer` | GL program、VAO | 成功 link 后 shader object 未删除；可被错误复制 |
-| `RayTracer` | CUDA stream、OptiX context、单个 pipeline/GAS buffer/params/SBT | stream 未销毁；raw handles 可复制；再次 setup 会覆盖/泄漏；析构宏可能抛异常 |
-| `MetalRenderer` | GAS handle、host params、RayTracer shared_ptr（仅构造参数） | 实际资源大多塞进 RayTracer；callback 捕获裸 `this`；builtin sphere module 未销毁 |
+| `RenderTarget` | RAII texture、PBO、CUDA graphics registration | owner 已闭合；仍依赖 texture unit 0 和固定尺寸 |
+| `Rasterizer` | RAII GL program、VAO；shader 为 setup 局部 RAII | owner 已闭合；仍依赖隐式 GL texture state |
+| `RayTracer` | RAII CUDA stream、OptiX context/pipeline、GAS/params/SBT buffers | owner 已闭合且 setup 可替换；职责仍过多 |
+| `MetalRenderer` | non-owning GAS handle、host params | GPU owner 仍在 RayTracer；callback 已改为 weak ownership，但该 class 仍只是配置器 |
 
 ## 5. 设计评估
 
@@ -174,29 +174,27 @@ GPU 端 `__raygen__` 使用 `optixTraverse + optixInvoke` 循环反弹，因此 
 
 ### 5.2 P0/P1 架构风险
 
-#### M1 已消除的 P0
+#### M1/M2 已消除的 P0
 
 - 移除 Proxy 后，默认 C++20/Clang 22.1.3 Release build 已恢复，不再依赖 feature-test macro workaround。
 - `Application` 现在不可 copy/move，GLFW user pointer 保存的地址在对象生存期内稳定。
 - GLFW、window 和 ImGui 已有部分构造安全的 RAII；State 声明顺序保证 ImGui 与 GL 对象先于 window/context 释放。
 - 单实例约束不再隐含：第二个同时存活的 `Application` 会明确抛出 `logic_error`。
-
-#### 仍需优先处理的 P0
-
-1. RenderTarget、Rasterizer、RayTracer 内部的 GL/CUDA/OptiX 生命周期尚未形成完整、析构不抛的 RAII。
-2. `MetalRenderer` 注册到 RayTracer 的 lambda 捕获裸 `this`；当前只靠 `main` 局部变量声明顺序保证 run 期间有效。
-3. `RayTracer::render()` 在 map 与 unmap 之间任一步抛错，PBO 会保持 mapped；需要 scoped mapping guard。
+- M2 用 `UniqueResource` + deleter 覆盖 active GL/CUDA/OptiX handle；高层资源 class 不再声明 destructor/copy/move。
+- RenderTarget 析构顺序为 unregister CUDA、删除 PBO、删除 texture；RayTracer 会依次释放 SBT/params/GAS、pipeline、context、stream。
+- `MetalRenderer` callback 改为 `weak_ptr`，失效时返回 Error；module/program group 等 setup 临时资源支持部分失败清理。
+- mapped PBO 有 scoped guard；map 后 copy/params/launch 任一步失败都会 best-effort unmap。
 
 #### P1：职责与接口不闭合
 
 - `RayTracer` 同时是 device/context、资源仓库、pipeline builder 与 renderer。
 - `MetalRenderer` 名为 renderer，却不提供 render；它只是给 RayTracer 安装状态与 callback。
 - M1 去掉了无效 type erasure，并用 PIMPL/forward declaration 避免从 `application.hpp` 暴露 CUDA/OptiX header；不过 `SetRenderer` 仍接受具体 `shared_ptr<RayTracer>`，真正的小型 renderer capability 尚未建立。
-- `setupShaderBindingTable(OptixShaderBindingTable&&)` 只是 raw struct 浅拷贝，不是真正的所有权转移。
-- params callback 可以未设置、返回悬空 span、返回超过 device buffer 容量的数据；API 没有表达这些约束。
+- SBT buffer 已通过 move-only owner 真正转交给 RayTracer；不过 SBT 与具体 renderer 的职责归属仍需在职责翻转时调整。
+- params callback 现在返回 Result，并检查未设置、renderer 失效和 device allocation 容量；`span` 生存期仍是调用方契约。
 - RenderTarget 只在构造时把 texture 绑定到 unit 0；Rasterizer 不显式接收/绑定目标，依赖隐式全局 GL 状态。
 - resize 只更新窗口宽高，RenderTarget 保持初始分辨率；HiDPI 下还应使用 framebuffer size。必须明确选择固定内部渲染分辨率或 resize/reallocate/reset accumulation。
-- `optix_function_table_definition.h` 位于公共 header；一旦 header 被多个 translation unit 包含就会违反单一定义要求，应移入唯一 `.cpp`。
+- OptiX function table definition 已移入唯一的 `ray_tracer.cpp`。
 
 ### 5.3 当前渲染功能的已知缺口
 
@@ -227,7 +225,7 @@ xmake build rtow
 xmake run rtow
 ```
 
-M0 恢复到 `667ed24` 后，正常 C++20 build 曾因 Proxy/Clang 组合失败。M1 删除未产生实际解耦价值的 Proxy 依赖后，默认 Release 配置已在同一工具链上完成编译和链接；审计中的宏 workaround 从未写进正式构建配置。
+M0 恢复到 `667ed24` 后，正常 C++20 build 曾因 Proxy/Clang 组合失败。M1 删除未产生实际解耦价值的 Proxy 依赖后恢复构建；M2 将 host C++ 升到 C++23 以使用 `std::expected`（当前 clang-cl 实际采用 `-std:c++latest`），NVRTC device source 仍使用 C++20。默认 Release 已在同一工具链上完成全量编译和链接，审计宏 workaround 从未进入正式配置。
 
 其他构建问题：
 
@@ -259,6 +257,7 @@ M0 恢复到 `667ed24` 后，正常 C++20 build 曾因 Proxy/Clang 组合失败�
 | 2025 `8d8cfc4` | 引入 Microsoft Proxy，尝试 IoC/type erasure |
 | 2025 `667ed24` | Application 接管 run loop 与 GLFW callbacks |
 | 2026 M1（本指南所在提交） | 移除无效 Proxy；稳定 Application 地址、部分构造与 teardown；恢复默认构建 |
+| 2026 M2（本指南所在提交） | C++23 Result；active GL/CUDA/OptiX RAII；mapped PBO guard；weak renderer callback |
 
 `e76db5e` 一次修改了 49 个非 third-party 源/构建文件（约 `2701+ / 6525-`），提交正文却只有 “Uses xmake”。这类没有迁移说明的大提交，而非复杂 merge 图，是今天难以还原设计意图的主要原因。
 
@@ -336,22 +335,22 @@ M1 移除 Proxy 是收回未完成的机制，并非否定 IoC。以后可以重
 
 #### Result Pattern
 
-所有可预期、可恢复的创建与运行错误最终应使用统一的 `Result<T, E>` 契约。`std::expected` 需要 C++23；如果项目继续使用 C++20，应先明确采用兼容实现或项目级 Result 类型，而不是再做一半 expected、一半 exception 的迁移。错误类型应保留阶段、底层错误码和诊断文本；析构函数不得通过 Result 或异常报告失败。
+M2 已确定 host C++23，并以 `std::expected<T, Error>` 定义项目 `Result<T>`；Error 保存 domain、底层 code、operation 和 message。新迁移的 active GL/CUDA/OptiX create/setup/render API 使用 Result，析构只做 best-effort cleanup 与诊断，不 throw/terminate。
 
-M1 的“内部异常 + main 捕获”只是恢复安全基线的过渡策略。现有 `exit`、assert 和可能从检查宏抛出的析构路径都不符合最终约束，后续里程碑必须逐步收敛。
+Application 当前仍将底层 Result 桥接成异常，NVRTC 宏仍会 `exit`；这两处是尚未完成的边界迁移，不应被当成最终错误模型。
 
 #### Rule of Zero
 
 Application、renderer、scene 等业务/编排 class 不应手写资源释放逻辑，也不应靠成片的 deleted/defaulted special members 修补所有权。它们应组合 move-safe 的 RAII value/handle，让编译器自然生成正确的 copy/move/destructor；确实不可复制的底层资源由其窄小 handle 类型表达。
 
-M1 的 `Application` 显式删除 copy/move，是修复 GLFW callback 悬空的安全过渡，不是最终 Rule of Zero 形态。下一次调整 Application 时，应考虑让 GLFW user pointer 指向地址稳定的内部 State，而不是外层 `Application`；这样 State 可由 `unique_ptr` 保持地址稳定，外层对象的移动语义便不再破坏 callback。若使用 incomplete PIMPL 而必须在 `.cpp` 中写 `= default` destructor，应把它视为编译边界的机械例外，不在其中编写清理流程。
+M2 新增一个通用 move-only `UniqueResource` 叶子基础设施；RenderTarget、Rasterizer、RayTracer、MetalRenderer 不再手写 destructor/copy/move。M1 的 `Application` 显式删除 copy/move，仍是修复 GLFW callback 悬空的安全过渡，不是最终 Rule of Zero 形态。下一次调整 Application 时，应考虑让 GLFW user pointer 指向地址稳定的内部 State，而不是外层 `Application`；这样 State 可由 `unique_ptr` 保持地址稳定，外层对象的移动语义便不再破坏 callback。若使用 incomplete PIMPL 而必须在 `.cpp` 中写 `= default` destructor，应把它视为编译边界的机械例外，不在其中编写清理流程。
 
 ## 9. 推荐重构顺序
 
-1. **已完成（M1）：恢复可构建基线。** 保持 C++20+exceptions，移除 Proxy，不采用诊断 workaround。
+1. **已完成（M1）：恢复可构建基线。** 移除 Proxy，不采用诊断 workaround。
 2. **已完成（M1）：修 Application 地址与 teardown。** 禁止 copy/move，恢复 ImGui shutdown，以 RAII 明确 GLFW 单实例和逆序析构。
-3. **下一步（M2）：补齐最底层 RAII。** CUDA stream/buffer、OptiX module/program/pipeline/context、GL texture/buffer、mapped PBO guard；删除 copy并保证析构不抛。
-4. **声明 active/legacy 边界。** 修正 `RTOW` 大小写，把失效章节移出主源码树或改成可构建 examples。
+3. **已完成（M2）：补齐 active 底层 RAII。** CUDA stream/buffer、OptiX module/program/pipeline/context、GL texture/buffer、mapped PBO guard；以 C++23 Result 报告可恢复失败。
+4. **下一步（M3）：声明 active/legacy 边界。** 修正 `RTOW` 大小写，把失效章节移出主源码树或改成可构建 examples。
 5. **翻转 RayTracer/MetalRenderer 关系。** 让 `MetalPathTracer` 真正实现 render 并拥有场景资源；去掉捕获裸 `this` 的 setup callback。
 6. **显式化 surface/presenter。** Presenter 每帧接收并绑定 texture；定义 resize 与 HiDPI 规则。
 7. **恢复 RTOW 数据模型。** 抽出 Camera、Scene、材质/SBT mapping 和 ABI checks。

@@ -2,7 +2,7 @@ add_rules("mode.debug", "mode.release")
 
 set_project("Venusaur")
 
-set_languages("c++20")
+set_languages("c++23")
 
 if is_plat("windows") then
     set_toolchains("clang-cl")

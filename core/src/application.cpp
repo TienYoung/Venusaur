@@ -135,8 +135,17 @@ struct Application::State {
         glfwMakeContextCurrent(window.get());
         glfwSwapInterval(1);
 
-        outputBuffer = std::make_shared<RenderTarget>(width, height);
-        rasterizer = std::make_shared<Rasterizer>();
+        auto output = RenderTarget::create(width, height);
+        if (!output) {
+            throw std::runtime_error(describe(output.error()));
+        }
+        outputBuffer = std::move(*output);
+
+        auto presenter = Rasterizer::create();
+        if (!presenter) {
+            throw std::runtime_error(describe(presenter.error()));
+        }
+        rasterizer = std::move(*presenter);
         imgui.initialize(window.get());
     }
 
@@ -205,7 +214,9 @@ void Application::run() {
     while (!glfwWindowShouldClose(m_state->window.get())) {
         auto startPoint = std::chrono::high_resolution_clock::now();
 
-        m_state->renderer->render(m_state->outputBuffer);
+        if (auto result = m_state->renderer->render(m_state->outputBuffer); !result) {
+            throw std::runtime_error(describe(result.error()));
+        }
         m_state->rasterizer->render(m_width, m_height);
 
         auto endPoint = std::chrono::high_resolution_clock::now();
