@@ -24,6 +24,13 @@
 - 以 PIMPL/forward declaration 收窄 `application.hpp` 的依赖面；第二个并存 Application 会明确失败。
 - 未配置 renderer 时抛出 `logic_error`，应用入口统一记录未处理的 `std::exception` 并返回失败码。
 
+## 已确认的长期架构约束
+
+- **IoC/依赖注入：** `main` 作为 composition root，Application 最终只依赖小型 renderer capability。Microsoft Proxy 可以重新评估，但不是 IoC 的必要条件。
+- **Result Pattern：** 可预期失败最终统一为 `Result<T, E>`；不要长期混用 Result、异常、`exit` 和 assert。C++20/C++23 及具体 Result 实现需在采用前明确。
+- **Rule of Zero：** 业务与编排 class 通过组合窄小 RAII handle 获得自然的 special members；清理逻辑只存在于底层 handle/deleter。
+- M1 的异常边界与显式删除 `Application` copy/move 是安全过渡，不代表最终设计已经满足以上约束。
+
 验收条件：
 
 - 默认 Release 配置能够完成 `xmake build rtow`，不使用 feature-test macro workaround。
@@ -50,6 +57,7 @@
 - `xmake build -v rtow`：失败。Clang 22.1.3 即使在 `-std:c++20` 下也让 vendored Proxy v4 进入 `trivially_relocatable_if_eligible` 分支，并在 `proxy.h:929` 等处产生语法错误。
 - `2026-08-13`（M1）：移除 active Proxy 依赖后，`xmake f -m release --cxxflags=` 与 `xmake build -v rtow` 成功，Clang 22.1.3 完成 `rtow.exe` 编译和链接。
 - `2026-08-13`（M1）：`git diff --check` 通过；active 源码与 `xmake.lua` 不再引用 Proxy。
+- `2026-08-13`（架构意图补录）：确认 IoC、Result Pattern、Rule of Zero 为后续重构约束；M1 实现明确标记为过渡状态。
 
 ## 已知 blocker
 
@@ -58,7 +66,7 @@
 
 ## 唯一下一步
 
-启动 M2：先列出 active GL/CUDA/OptiX handle 及 owner/创建/销毁路径，再按依赖顺序实现 move-only、部分构造安全、析构 `noexcept` 的底层 RAII；不要在同一里程碑顺带改 renderer 职责或恢复 RTOW 功能。
+启动 M2：先列出 active GL/CUDA/OptiX handle 及 owner/创建/销毁路径，并先确定统一 Result 的语言版本/实现；随后按依赖顺序把释放集中到窄小、move-safe、析构 `noexcept` 的 RAII handle，使上层 class 向 Rule of Zero 收敛。不要在同一里程碑顺带改 renderer 职责或恢复 RTOW 功能。
 
 ## 交接协议
 

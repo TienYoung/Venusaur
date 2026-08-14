@@ -18,6 +18,12 @@ Venusaur 历史上确实完成过一版 OptiX 的 *Ray Tracing in One Weekend*�
 4. `MetalRenderer` 负责 RTOW Metal 场景、pipeline、SBT 和参数。
 5. M1 已移除未形成真实可替换性的 Microsoft Proxy；`Application` 暂时直接组合 `RayTracer`。
 
+项目作者在 M1 后确认了三项长期架构意图：
+
+1. composition root 使用 IoC/依赖注入组装能力，Application 不依赖具体 renderer。
+2. 可恢复失败统一使用 Result Pattern，而不是在 `expected`、异常、`exit`、assert 之间混用。
+3. 业务与编排 class 以 Rule of Zero 为目标；资源释放集中在窄小的 RAII handle/deleter 中。
+
 问题在于重构仍处于中间态：M1 只稳定了应用层生命周期与构建基线，底层 GL/CUDA/OptiX 资源所有权仍跨对象分裂，`MetalRenderer` 实际只是配置器，大量旧文件也已失效。因此当前优先级仍是“稳定生命周期和源码边界”，不是继续增加材质或抽象层。
 
 ## 2. 当前 HEAD 与已丢弃草稿分别想做什么
@@ -314,6 +320,31 @@ MetalPathTracer : IRenderer
 5. 除确实共享的 device/context 外，优先值语义或 `unique_ptr`，不要用 shared_ptr 掩盖所有权。
 6. host/device ABI 放在独立、可自包含 header，并为 size/alignment 添加 `static_assert`。
 7. NVRTC compilation 独立成组件，错误中必须包含 source path、options 与完整 compile log。
+
+### 8.1 已确认的设计约束
+
+#### IoC 与 Proxy
+
+IoC 是目标，Microsoft Proxy 只是可能的实现工具，不应与目标本身绑定。M1 前的代码并未真正完成依赖反转：`Application::SetRenderer` 只接受 `shared_ptr<RayTracer>`，随后才把这个已经确定的具体类型装进 `pro::proxy<Renderable>`；没有第二种实现、test double、factory 或由 composition root 注入的抽象 capability。因此那一层只提供了调用转发，没有改变依赖方向。
+
+M1 移除 Proxy 是收回未完成的机制，并非否定 IoC。以后可以重新采用 Microsoft Proxy，但应满足以下条件：
+
+- `Application` 的公开边界接受小型 renderer capability，而不是具体 `RayTracer`。
+- `main` 是 composition root，负责选择实现并明确所有权/生命周期。
+- 至少能用第二个 renderer 或 test double 证明替换不需要修改 Application。
+- type erasure 的收益足以覆盖第三方依赖、编译器兼容与调试成本；否则小型 interface、函数对象或模板注入也可以实现依赖反转。
+
+#### Result Pattern
+
+所有可预期、可恢复的创建与运行错误最终应使用统一的 `Result<T, E>` 契约。`std::expected` 需要 C++23；如果项目继续使用 C++20，应先明确采用兼容实现或项目级 Result 类型，而不是再做一半 expected、一半 exception 的迁移。错误类型应保留阶段、底层错误码和诊断文本；析构函数不得通过 Result 或异常报告失败。
+
+M1 的“内部异常 + main 捕获”只是恢复安全基线的过渡策略。现有 `exit`、assert 和可能从检查宏抛出的析构路径都不符合最终约束，后续里程碑必须逐步收敛。
+
+#### Rule of Zero
+
+Application、renderer、scene 等业务/编排 class 不应手写资源释放逻辑，也不应靠成片的 deleted/defaulted special members 修补所有权。它们应组合 move-safe 的 RAII value/handle，让编译器自然生成正确的 copy/move/destructor；确实不可复制的底层资源由其窄小 handle 类型表达。
+
+M1 的 `Application` 显式删除 copy/move，是修复 GLFW callback 悬空的安全过渡，不是最终 Rule of Zero 形态。下一次调整 Application 时，应考虑让 GLFW user pointer 指向地址稳定的内部 State，而不是外层 `Application`；这样 State 可由 `unique_ptr` 保持地址稳定，外层对象的移动语义便不再破坏 callback。若使用 incomplete PIMPL 而必须在 `.cpp` 中写 `= default` destructor，应把它视为编译边界的机械例外，不在其中编写清理流程。
 
 ## 9. 推荐重构顺序
 
