@@ -1,26 +1,25 @@
 # Venusaur 项目状态
 
-> 新对话从这里开始。本文件只保存当前状态、最近验证和唯一下一步；长期架构与历史见 [`PROJECT_GUIDE.md`](PROJECT_GUIDE.md)，更早过程由 Git 历史保存。
+> 新对话从这里开始。本文件只保存当前状态、最近验证和唯一下一步；长期架构与历史见 [`PROJECT_GUIDE.md`](PROJECT_GUIDE.md)，尚未决定是否实施的疑问见 [`PROJECT_QUESTIONS.md`](PROJECT_QUESTIONS.md)，更早过程由 Git 历史保存。
 
 ## 当前快照
 
 - 更新时间：2026-08-14（America/Toronto）
 - 分支：`Reconstruction`
 - 代码基线：`b0f5d89`（M2.3）
-- 当前里程碑：`M2.4`，`complete`
+- 当前里程碑：`M2.5`，`complete`
 - 工作树预期：里程碑提交后 clean；只允许存在 ignored build/cache 产物
 - 发布策略：每个完成的里程碑本地提交一次，不自动 push
 
-## 当前里程碑：M2.4 平坦流程与错误边界决策
+## 当前里程碑：M2.5 待讨论设计队列
 
-目标：记录“接受长而平坦的显式代码，拒绝深层嵌套和无效封装”的设计取向，并将 Application Result 贯通设为下一任务。
+目标：建立与已批准路线分离的待讨论表，记录感觉不对但今天不实施的设计问题。
 
 验收结果：
 
-- 代码长度本身不是问题；优先消除嵌套、隐藏控制流与跨层生命周期推理。
-- 封装应闭合资源所有权或不变量；不为缩短几段对称、线性的 GLFW/ImGui 代码增加 manager/factory 层。
-- 致命启动失败后进程立即结束，无需为 GLFW/ImGui 设计复杂的部分初始化 rollback；正常关闭仍保持显式对称 shutdown。
-- Result 负责结构化错误和显式上传，不等于所有失败都必须 rollback。当前 Result -> `throw`/`exit` 只是 M1/M2 过渡边界。
+- 独立表包含 RenderTarget Mapping 对称性、RayTracer `create()`/`initialize()` 分段与 `exception.hpp` 来源/混合错误模型三项。
+- 每项都只记录当前事实、不适感与决策前必须回答的问题，明确标记为“未批准实施”。
+- 今天不修改任何 C/C++ 代码，M3 的已批准目标不变。
 
 ## 已确认的长期架构约束
 
@@ -40,6 +39,7 @@
 | M2.2 格式化边界修正 | complete | spdlog 只负责日志；非日志字符串使用 `std::format` |
 | M2.3 格式与交接基线 | complete | active 源码 clang-format 基线；今日总结与当前/目标架构图 |
 | M2.4 平坦流程与错误边界决策 | complete | 记录显式线性编排、资源封装与致命失败清理策略 |
+| M2.5 待讨论设计队列 | complete | 独立记录 Mapping、RayTracer initialize 和 `exception.hpp`；不承诺实施 |
 | M3 Application Result 与线性生命周期 | pending | 消除 active Result -> `throw`/`exit`；保持 GLFW/ImGui 创建/销毁显式对称 |
 | M4 Active/legacy 边界 | pending | 整理失效教程源码、构建目标与路径大小写 |
 
@@ -52,6 +52,7 @@
 - M2.1–M2.2：日志直接交给 spdlog；非日志字符串使用 `std::format`；clangd 改为读取 xmake compilation database。
 - M2.3：建立 active 源码 clang-format 22.1.3 基线与强制验收协议，并固化今日总结与当前/目标架构图。
 - M2.4：确认长而平坦的显式流程优于为缩短代码而封装；资源所有权仍由窄 RAII 类型闭合；Application 错误上传提前为 M3。
+- M2.5：建立待讨论表，停放 Mapping 生命期、无独立责任的 initialize 与混合来源 `exception.hpp` 三项疑问，今天不作实现决定。
 
 ## 最近验证
 
@@ -74,6 +75,7 @@
 - `2026-08-14`（M2.3）：VS LLVM clang-format 22.1.3 对 active 自有源码建立基线，随后 `--dry-run --Werror` 通过；`third_party` 和 legacy 未改写。
 - `2026-08-14`（M2.3）：`xmake build -v rtow` 成功；clangd 对 `RTOW/main.cpp` 与 `core/src/render_target.cpp` 均为 0 errors；`git diff --check` 通过。
 - `2026-08-14`（M2.4）：仅更新决策与交接文档，未修改代码；`git diff --check` 通过，沿用 M2.3 的构建/clangd/clang-format 验证基线。
+- `2026-08-14`（M2.5）：只读核对三项当前调用形态；仅新增/更新 Markdown，未修改代码。
 
 ## 已知 blocker
 

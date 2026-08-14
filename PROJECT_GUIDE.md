@@ -2,7 +2,7 @@
 
 > 这是一份面向后续维护者与代码审计者的“事实地图”，不是对当前实现的背书。
 > 快照日期：2026-08-14（America/Toronto）；主线：`Reconstruction`；历史审计基线：`667ed24922c3fdd29ff7ee0289f0eb036ecea281`；当前实现以本文件所在提交为准。
-> 当前里程碑、验证结果和唯一下一步见 [`PROJECT_STATUS.md`](PROJECT_STATUS.md)；新对话应先读状态文件，再按需查阅本指南。
+> 当前里程碑、验证结果和唯一下一步见 [`PROJECT_STATUS.md`](PROJECT_STATUS.md)；尚未批准实施的设计疑问见 [`PROJECT_QUESTIONS.md`](PROJECT_QUESTIONS.md)。新对话应先读状态文件，再按需查阅本指南与疑问表。
 
 ## 1. 一页结论
 
@@ -288,7 +288,8 @@ M0 恢复到 `667ed24` 后，正常 C++20 build 曾因 Proxy/Clang 组合失败�
 | 2026 M2.1 `6c96d42` | 日志入口统一到 spdlog；clangd 接入 xmake compilation database |
 | 2026 M2.2 `9f3a44c` | 修正格式化边界：非日志字符串使用 `std::format`，不依赖 spdlog |
 | 2026 M2.3 `b0f5d89` | active 源码 clang-format 基线；格式化验收协议；今日总结与架构图 |
-| 2026 M2.4（本指南所在提交） | 记录平坦编排、资源封装、致命失败清理与 Result 上传决策 |
+| 2026 M2.4 `ef863db` | 记录平坦编排、资源封装、致命失败清理与 Result 上传决策 |
+| 2026 M2.5（本指南所在提交） | 建立与已批准路线分离的设计疑问表；不改代码 |
 
 `e76db5e` 一次修改了 49 个非 third-party 源/构建文件（约 `2701+ / 6525-`），提交正文却只有 “Uses xmake”。这类没有迁移说明的大提交，而非复杂 merge 图，是今天难以还原设计意图的主要原因。
 
