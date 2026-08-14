@@ -24,7 +24,7 @@ Venusaur 历史上确实完成过一版 OptiX 的 *Ray Tracing in One Weekend*�
 2. 可恢复失败统一使用 Result Pattern，而不是在 `expected`、异常、`exit`、assert 之间混用。
 3. 业务与编排 class 以 Rule of Zero 为目标；资源释放集中在窄小的 RAII handle/deleter 中。
 
-问题在于重构仍处于中间态：M1 稳定了应用层生命周期与构建基线，M2 为 active GL/CUDA/OptiX handle 建立了 Result + RAII 基线；但 `MetalRenderer` 仍是配置器，Application 仍依赖具体 RayTracer，大量旧文件也已失效。因此当前优先级转为“声明 active/legacy 源码边界”，不是继续增加材质或抽象层。
+问题在于重构仍处于中间态：M1 稳定了应用层生命周期与构建基线，M2 为 active GL/CUDA/OptiX handle 建立了 Result + RAII 基线；但 Application 仍把 Result 转成异常，NVRTC 宏仍直接 `exit`。因此当前优先级是先闭合 Application 的显式错误边界，然后再整理 active/legacy 源码；不继续增加材质或抽象层。
 
 ## 2. 当前 HEAD 与已丢弃草稿分别想做什么
 
@@ -287,7 +287,8 @@ M0 恢复到 `667ed24` 后，正常 C++20 build 曾因 Proxy/Clang 组合失败�
 | 2026 M2 `e668f3f` | C++23 Result；active GL/CUDA/OptiX RAII；mapped PBO guard；weak renderer callback |
 | 2026 M2.1 `6c96d42` | 日志入口统一到 spdlog；clangd 接入 xmake compilation database |
 | 2026 M2.2 `9f3a44c` | 修正格式化边界：非日志字符串使用 `std::format`，不依赖 spdlog |
-| 2026 M2.3（本指南所在提交） | active 源码 clang-format 基线；格式化验收协议；今日总结与架构图 |
+| 2026 M2.3 `b0f5d89` | active 源码 clang-format 基线；格式化验收协议；今日总结与架构图 |
+| 2026 M2.4（本指南所在提交） | 记录平坦编排、资源封装、致命失败清理与 Result 上传决策 |
 
 `e76db5e` 一次修改了 49 个非 third-party 源/构建文件（约 `2701+ / 6525-`），提交正文却只有 “Uses xmake”。这类没有迁移说明的大提交，而非复杂 merge 图，是今天难以还原设计意图的主要原因。
 
@@ -361,7 +362,17 @@ M1 移除 Proxy 是收回未完成的机制，并非否定 IoC。以后可以重
 
 M2 已确定 host C++23，并以 `std::expected<T, Error>` 定义项目 `Result<T>`；Error 保存 domain、底层 code、operation 和 message。新迁移的 active GL/CUDA/OptiX create/setup/render API 使用 Result，析构只做 best-effort cleanup 与诊断，不 throw/terminate。
 
-Application 当前仍将底层 Result 桥接成异常，NVRTC 宏仍会 `exit`；这两处是尚未完成的边界迁移，不应被当成最终错误模型。
+Application 当前仍将底层 Result 桥接成异常，NVRTC 宏仍会 `exit`。这不是因为 C++ 天生更适合 throw，而是 M1 为了先修复生命周期、同时不改动当时的 public constructor 和 `void run()` 而留下的过渡桥接。C++ 构造函数不能返回 Result，throw 因此是传统的构造失败手段；但它隐藏控制流，而当前转换还将结构化 Error 压成了字符串。对本项目已确认的风格，fallible factory + `Result<void> run()` + 显式 early return 更合适。
+
+Result 只解决“错误怎么上传”，不要把它与“失败后必须回滚所有资源”绑定。对 GLFW/ImGui 这类进程级服务，若启动失败后唯一策略是记录错误并结束进程，不需为 sanitizer 式的“退出前完美清理”增加部分初始化状态机。
+
+#### 平坦编排与有意义的封装
+
+项目不把文件或函数的纵向长度当作问题；更需要控制的是嵌套深度、隐藏控制流和跨层生命周期推理。一段长但对称、顺序清晰的 GLFW/ImGui create/init/shutdown 流程，比被拆进 manager、factory、service 和继承层次更容易维护。不要只为减少调用者看到的行数而提取 class/function。
+
+封装的准入条件是它至少闭合一项真实责任：唯一资源所有权、析构顺序、合法状态或稳定领域不变量。`UniqueResource`、`RenderTarget` 等叶子 owner 符合这个条件，因为它们消除了上层的析构与错误路径；仅转发一串显式调用的 wrapper 不符合。业务层优先组合与 capability injection，不建立继承树。
+
+GLFW/ImGui 的正常关闭仍应保持显式的逆序 shutdown；但致命启动失败可直接上传到 `main` 并结束进程，不为尚未完整初始化的 backend 增加复杂 rollback。这项策略只适用于当前“启动失败即退出”的 executable；如果未来需要重试、多 Application 或 library embedding，再重新评估部分初始化清理。
 
 #### Rule of Zero
 
@@ -374,12 +385,13 @@ M2 新增一个通用 move-only `UniqueResource` 叶子基础设施；RenderTarg
 1. **已完成（M1）：恢复可构建基线。** 移除 Proxy，不采用诊断 workaround。
 2. **已完成（M1）：修 Application 地址与 teardown。** 禁止 copy/move，恢复 ImGui shutdown，以 RAII 明确 GLFW 单实例和逆序析构。
 3. **已完成（M2）：补齐 active 底层 RAII。** CUDA stream/buffer、OptiX module/program/pipeline/context、GL texture/buffer、mapped PBO guard；以 C++23 Result 报告可恢复失败。
-4. **下一步（M3）：声明 active/legacy 边界。** 修正 `RTOW` 大小写，把失效章节移出主源码树或改成可构建 examples。
-5. **翻转 RayTracer/MetalRenderer 关系。** 让 `MetalPathTracer` 真正实现 render 并拥有场景资源；去掉捕获裸 `this` 的 setup callback。
-6. **显式化 surface/presenter。** Presenter 每帧接收并绑定 texture；定义 resize 与 HiDPI 规则。
-7. **恢复 RTOW 数据模型。** 抽出 Camera、Scene、材质/SBT mapping 和 ABI checks。
-8. **加入 accumulation。** 定义 camera/scene/resize 变化时的 reset 规则，再修随机序列与 payload budget。
-9. **最后恢复功能。** dielectric、最终随机场景、景深；motion blur 参考 RTNW，但按 OptiX 9.1 架构重写。
+4. **下一步（M3）：贯通 Application Result 与线性生命周期。** fallible create/run/NVRTC 显式向 `main` 上传 Error；正常 GLFW/ImGui shutdown 对称可见；致命启动失败不设计复杂 rollback。
+5. **M4：声明 active/legacy 边界。** 修正 `RTOW` 大小写，把失效章节移出主源码树或改成可构建 examples。
+6. **翻转 RayTracer/MetalRenderer 关系。** 让 `MetalPathTracer` 真正实现 render 并拥有场景资源；去掉捕获裸 `this` 的 setup callback。
+7. **显式化 surface/presenter。** Presenter 每帧接收并绑定 texture；定义 resize 与 HiDPI 规则。
+8. **恢复 RTOW 数据模型。** 抽出 Camera、Scene、材质/SBT mapping 和 ABI checks。
+9. **加入 accumulation。** 定义 camera/scene/resize 变化时的 reset 规则，再修随机序列与 payload budget。
+10. **最后恢复功能。** dielectric、最终随机场景、景深；motion blur 参考 RTNW，但按 OptiX 9.1 架构重写。
 
 最低测试集：
 

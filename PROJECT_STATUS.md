@@ -6,21 +6,21 @@
 
 - 更新时间：2026-08-14（America/Toronto）
 - 分支：`Reconstruction`
-- 代码基线：本文件所在提交（M2.3；M2.2 为 `9f3a44c`）
-- 当前里程碑：`M2.3`，`complete`
+- 代码基线：`b0f5d89`（M2.3）
+- 当前里程碑：`M2.4`，`complete`
 - 工作树预期：里程碑提交后 clean；只允许存在 ignored build/cache 产物
 - 发布策略：每个完成的里程碑本地提交一次，不自动 push
 
-## 当前里程碑：M2.3 格式与交接基线
+## 当前里程碑：M2.4 平坦流程与错误边界决策
 
-目标：建立 clang-format 一致性基线，并把今日进度、当前架构与新对话的接手路径固化到项目文档。
+目标：记录“接受长而平坦的显式代码，拒绝深层嵌套和无效封装”的设计取向，并将 Application Result 贯通设为下一任务。
 
 验收结果：
 
-- 只格式化 active 且由项目维护的 C/C++ 源码；排除 `third_party` 与 legacy 教程文件。
-- 使用仓库 `.clang-format` 和 VS LLVM clang-format 22.1.3；先 dry-run，再应用并审查差异。
-- 今后每次生成或修改 C/C++ 代码，验收前必须对变更的自有源文件运行 clang-format。
-- 指南增加当前架构图；状态文件保留精简的今日总结和唯一下一步。
+- 代码长度本身不是问题；优先消除嵌套、隐藏控制流与跨层生命周期推理。
+- 封装应闭合资源所有权或不变量；不为缩短几段对称、线性的 GLFW/ImGui 代码增加 manager/factory 层。
+- 致命启动失败后进程立即结束，无需为 GLFW/ImGui 设计复杂的部分初始化 rollback；正常关闭仍保持显式对称 shutdown。
+- Result 负责结构化错误和显式上传，不等于所有失败都必须 rollback。当前 Result -> `throw`/`exit` 只是 M1/M2 过渡边界。
 
 ## 已确认的长期架构约束
 
@@ -39,7 +39,9 @@
 | M2.1 日志与 clangd | complete | 日志入口统一到 spdlog；clangd 接入 xmake compile database；普通字符串误用 bundled fmt 由 M2.2 纠正 |
 | M2.2 格式化边界修正 | complete | spdlog 只负责日志；非日志字符串使用 `std::format` |
 | M2.3 格式与交接基线 | complete | active 源码 clang-format 基线；今日总结与当前/目标架构图 |
-| M3 Active/legacy 边界 | pending | 整理失效教程源码、构建目标与路径大小写 |
+| M2.4 平坦流程与错误边界决策 | complete | 记录显式线性编排、资源封装与致命失败清理策略 |
+| M3 Application Result 与线性生命周期 | pending | 消除 active Result -> `throw`/`exit`；保持 GLFW/ImGui 创建/销毁显式对称 |
+| M4 Active/legacy 边界 | pending | 整理失效教程源码、构建目标与路径大小写 |
 
 ## 本轮进度总结（2026-08-13 至 2026-08-14）
 
@@ -49,6 +51,7 @@
 - M2：以 `UniqueResource` 覆盖 active GL/CUDA/OptiX handle，建立部分构造安全、无抛 cleanup、mapped PBO guard 和 weak renderer callback。
 - M2.1–M2.2：日志直接交给 spdlog；非日志字符串使用 `std::format`；clangd 改为读取 xmake compilation database。
 - M2.3：建立 active 源码 clang-format 22.1.3 基线与强制验收协议，并固化今日总结与当前/目标架构图。
+- M2.4：确认长而平坦的显式流程优于为缩短代码而封装；资源所有权仍由窄 RAII 类型闭合；Application 错误上传提前为 M3。
 
 ## 最近验证
 
@@ -70,17 +73,18 @@
 - clangd 整文件 `--check` Application 时会在内置 ExtractFunction 动作上报 3 个 break/continue 提取错误；AST 构建、源码诊断和修改行检查正常，不是编译错误。
 - `2026-08-14`（M2.3）：VS LLVM clang-format 22.1.3 对 active 自有源码建立基线，随后 `--dry-run --Werror` 通过；`third_party` 和 legacy 未改写。
 - `2026-08-14`（M2.3）：`xmake build -v rtow` 成功；clangd 对 `RTOW/main.cpp` 与 `core/src/render_target.cpp` 均为 0 errors；`git diff --check` 通过。
+- `2026-08-14`（M2.4）：仅更新决策与交接文档，未修改代码；`git diff --check` 通过，沿用 M2.3 的构建/clangd/clang-format 验证基线。
 
 ## 已知 blocker
 
-- M3 无外部 blocker。active 与 legacy 文件仍混在 `RTOW`/`core` 中，且 xmake 的 `rtow` 路径大小写只在 Windows 上偶然可用。
+- M3 无外部 blocker。当前 `Application::State` 和 `Application::run()` 会把底层 Result 转为 `runtime_error`，NVRTC 宏则直接 `exit`。
 - `build/compile_commands.json` 是 ignored 生成物；configure、toolchain 或 include 改变后需重新生成。NVRTC `.cu` 的独立 LSP 支持尚未建立。
-- Application 仍把底层 Result 转为异常，NVRTC 宏仍会 `exit`；它们是最终 Result Pattern 尚未闭合的边界，但不阻塞 M3。
+- M4 的已知范围：active 与 legacy 文件仍混在 `RTOW`/`core` 中，xmake 的 `rtow` 路径大小写只在 Windows 上偶然可用。
 - M2 未自动运行交互式 GUI；启动、渲染、窗口关闭和真实 teardown 仍需 smoke test 覆盖。
 
 ## 唯一下一步
 
-开始 M3：声明 active/legacy 边界，先盘点失效教程文件、构建目标与 `RTOW` 路径大小写；开始前先把 M3 标记为 `in_progress` 并锁定去留策略。
+开始 M3：让可预期失败像 Rust `?` 一样显式向上传。将 Application 的 fallible 创建与 `run()` 改为 Result 边界，将 NVRTC 编译从 `exit` 改为 Result，最终只由 `main` 记录错误并返回失败码。实现保持长而平坦、early-return 的线性流程；不新增继承、manager/factory 层或致命启动失败的复杂 rollback。GLFW/ImGui 正常关闭仍显式逆序 shutdown，callback 必须指向地址稳定的状态。
 
 ## 交接协议
 
