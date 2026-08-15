@@ -8,6 +8,7 @@ if is_plat("windows") then
     set_toolchains("clang-cl")
     add_cxxflags("-Wno-c++23-extensions")
     add_defines("NOMINMAX")
+    add_links("advapi32")
 elseif is_plat("linux") then
     set_toolchains("clang")
 end 
