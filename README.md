@@ -11,6 +11,7 @@
 | [`PROJECT_STATUS.md`](PROJECT_STATUS.md) | 当前里程碑、最近验证、唯一下一步（**从这里开始**） |
 | [`PROJECT_GUIDE.md`](PROJECT_GUIDE.md) | 架构、设计约束、历史与分支地图、重构路线 |
 | [`PROJECT_QUESTIONS.md`](PROJECT_QUESTIONS.md) | 未批准实施的设计疑问 |
+| [`docs/notes/`](docs/notes/) | 设计学习笔记：典型问题的分析与取舍 |
 | [`AGENTS.md`](AGENTS.md) | AI agent 工作入口与约定 |
 
 ## 构建（Windows）

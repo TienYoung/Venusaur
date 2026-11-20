@@ -388,7 +388,7 @@ M2 新增一个通用 move-only `UniqueResource` 叶子基础设施；RenderTarg
 3. **已完成（M2）：补齐 active 底层 RAII。** CUDA stream/buffer、OptiX module/program/pipeline/context、GL texture/buffer、mapped PBO guard；以 C++23 Result 报告可恢复失败。
 4. **下一步（M3）：贯通 Application Result 与线性生命周期。** fallible create/run/NVRTC 显式向 `main` 上传 Error；正常 GLFW/ImGui shutdown 对称可见；致命启动失败不设计复杂 rollback。
 5. **M4：声明 active/legacy 边界。** 修正 `RTOW` 大小写，把失效章节移出主源码树或改成可构建 examples。
-6. **翻转 RayTracer/MetalRenderer 关系。** 让 `MetalPathTracer` 真正实现 render 并拥有场景资源；去掉捕获裸 `this` 的 setup callback。
+6. **翻转 RayTracer/MetalRenderer 关系。** 让 `MetalPathTracer` 真正实现 render 并拥有场景资源；去掉捕获裸 `this` 的 setup callback。问题分析与方案见 [`docs/notes/001-launch-params-callback.md`](docs/notes/001-launch-params-callback.md)。
 7. **显式化 surface/presenter。** Presenter 每帧接收并绑定 texture；定义 resize 与 HiDPI 规则。
 8. **恢复 RTOW 数据模型。** 抽出 Camera、Scene、材质/SBT mapping 和 ABI checks。
 9. **加入 accumulation。** 定义 camera/scene/resize 变化时的 reset 规则，再修随机序列与 payload budget。
