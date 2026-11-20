@@ -10,6 +10,14 @@
 - 当前里程碑：`M2.5`，`complete`
 - 工作树预期：里程碑提交后 clean；只允许存在 ignored build/cache 产物
 - 发布策略：每个完成的里程碑本地提交一次，不自动 push
+- Agent 入口：[`AGENTS.md`](AGENTS.md)（`CLAUDE.md` 引用它）
+
+## M2.5 之后的未登记变更（2026-11-20 补录）
+
+- `d506a84`（2026-08-15）：`.clangd` 的 `CompilationDatabase` 改为 `.vscode`；`core` 增加 Windows 系统链接。
+- `76b30f4`（2026-11-20）：合并 `core` 的 Windows 系统链接为 `add_syslinks("advapi32", "gdi32")`。
+- 两者都是构建/工具修正，不改变里程碑与下一步。
+- `2026-11-20`：作者手动验证 `76b30f4` 可正常构建并运行，作为 M3 的起点基线。
 
 ## 当前里程碑：M2.5 待讨论设计队列
 
@@ -80,9 +88,9 @@
 ## 已知 blocker
 
 - M3 无外部 blocker。当前 `Application::State` 和 `Application::run()` 会把底层 Result 转为 `runtime_error`，NVRTC 宏则直接 `exit`。
-- `build/compile_commands.json` 是 ignored 生成物；configure、toolchain 或 include 改变后需重新生成。NVRTC `.cu` 的独立 LSP 支持尚未建立。
+- `.vscode/compile_commands.json`（`.clangd` 当前指向此处；GUIDE §6 中的 `build/` 已过时）是 ignored 生成物；configure、toolchain 或 include 改变后需重新生成。NVRTC `.cu` 的独立 LSP 支持尚未建立。
 - M4 的已知范围：active 与 legacy 文件仍混在 `RTOW`/`core` 中，xmake 的 `rtow` 路径大小写只在 Windows 上偶然可用。
-- M2 未自动运行交互式 GUI；启动、渲染、窗口关闭和真实 teardown 仍需 smoke test 覆盖。
+- 交互式 GUI 只有人工验证（2026-11-20 作者确认 `76b30f4` 运行正常）；启动、渲染、窗口关闭和真实 teardown 尚无自动 smoke test。
 
 ## 唯一下一步
 
