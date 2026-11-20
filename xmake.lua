@@ -8,7 +8,6 @@ if is_plat("windows") then
     set_toolchains("clang-cl")
     add_cxxflags("-Wno-c++23-extensions")
     add_defines("NOMINMAX")
-    add_links("advapi32")
 elseif is_plat("linux") then
     set_toolchains("clang")
 end 
@@ -39,7 +38,7 @@ target("core")
     remove_files("core/src/camera.cpp")
     add_includedirs("core/include", {public = true})
     if is_plat("windows") then
-        add_syslinks("gdi32")
+        add_syslinks("advapi32", "gdi32")
     end
     -- glfw
     add_packages("glfw", {public = true})
