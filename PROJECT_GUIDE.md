@@ -379,7 +379,7 @@ GLFW/ImGui 的正常关闭仍应保持显式的逆序 shutdown；但致命启动
 
 Application、renderer、scene 等业务/编排 class 不应手写资源释放逻辑，也不应靠成片的 deleted/defaulted special members 修补所有权。它们应组合 move-safe 的 RAII value/handle，让编译器自然生成正确的 copy/move/destructor；确实不可复制的底层资源由其窄小 handle 类型表达。
 
-M2 新增一个通用 move-only `UniqueResource` 叶子基础设施；RenderTarget、Rasterizer、RayTracer、MetalRenderer 不再手写 destructor/copy/move。M1 的 `Application` 显式删除 copy/move，仍是修复 GLFW callback 悬空的安全过渡，不是最终 Rule of Zero 形态。下一次调整 Application 时，应考虑让 GLFW user pointer 指向地址稳定的内部 State，而不是外层 `Application`；这样 State 可由 `unique_ptr` 保持地址稳定，外层对象的移动语义便不再破坏 callback。若使用 incomplete PIMPL 而必须在 `.cpp` 中写 `= default` destructor，应把它视为编译边界的机械例外，不在其中编写清理流程。
+M2 新增一个通用 move-only `UniqueResource` 叶子基础设施（专门针对非指针资源，如 `GLuint`、`CUdeviceptr`、OptiX handle，这类句柄不适合用 `std::unique_ptr` 管理）；RenderTarget、Rasterizer、RayTracer、MetalRenderer 不再手写 destructor/copy/move。M1 的 `Application` 显式删除 copy/move，仍是修复 GLFW callback 悬空的安全过渡，不是最终 Rule of Zero 形态。下一次调整 Application 时，应考虑让 GLFW user pointer 指向地址稳定的内部 State，而不是外层 `Application`；这样 State 可由 `unique_ptr` 保持地址稳定，外层对象的移动语义便不再破坏 callback。若使用 incomplete PIMPL 而必须在 `.cpp` 中写 `= default` destructor，应把它视为编译边界的机械例外，不在其中编写清理流程。
 
 ## 9. 推荐重构顺序
 
